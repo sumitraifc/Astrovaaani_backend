@@ -67,10 +67,29 @@ exports.findById = async (id) => {
 /**
  * UPDATE PROFILE
  */
-exports.updateProfile = async (id, data) => {
+// exports.updateProfile = async (id, data) => {
+//   await pool.query(
+//     `UPDATE users 
+//      SET name=?, gender=?, dob=?, birth_time=?, birth_place=?, email=?
+//      WHERE id=?`,
+//     [
+//       data.name,
+//       data.gender,
+//       data.dob,
+//       data.birth_time,
+//       data.birth_place,
+//       data.email,
+//       id
+//     ]
+//   );
+
+//   return { success: true };
+// };
+
+exports.updateProfile = async (id, data, profileImage) => {
   await pool.query(
     `UPDATE users 
-     SET name=?, gender=?, dob=?, birth_time=?, birth_place=?, email=?
+     SET name=?, gender=?, dob=?, birth_time=?, birth_place=?, email=?, profile_image=COALESCE(?, profile_image)
      WHERE id=?`,
     [
       data.name,
@@ -79,6 +98,7 @@ exports.updateProfile = async (id, data) => {
       data.birth_time,
       data.birth_place,
       data.email,
+      profileImage,
       id
     ]
   );
