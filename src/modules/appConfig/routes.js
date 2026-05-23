@@ -1,15 +1,10 @@
 const router = require("express").Router();
-
 const controller = require("./controller");
 
-router.get("/privacy-policy", controller.getPrivacyPolicy);
+// ALL CONTENT IN ONE
+router.get("/config", controller.getConfig);
 
-router.get("/terms", controller.getTerms);
-
-router.get("/helpandsupport", controller.getContactUs);
-
-router.get("/faqs", controller.getFaqs);
-
-router.get("/banners", controller.getBanners);
+// BANNERS ONLY
+router.get("/banner", controller.getBanners);
 
 module.exports = router;

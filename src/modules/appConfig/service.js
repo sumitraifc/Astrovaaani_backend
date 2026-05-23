@@ -1,23 +1,23 @@
 const repo = require("./repository");
 
-exports.getPrivacyPolicy = async () => {
-  return await repo.findByType("privacy_policy");
-};
+exports.getConfig = async () => {
+  const privacy = await repo.findByType("privacy_policy");
+  const terms = await repo.findByType("terms_conditions");
+  const contact = await repo.findByType("contact_us");
 
-exports.getTerms = async () => {
-  return await repo.findByType("terms_conditions");
-};
-
-exports.getContactUs = async () => {
-  return await repo.findByType("contact_us");
-};
-
-exports.getFaqs = async () => {
-  const data = await repo.findByType("faq");
+  const faqData = await repo.findByType("faq");
 
   return {
-    ...data,
-    content: JSON.parse(data.content || "[]")
+    privacy_policy: privacy || null,
+    terms_conditions: terms || null,
+    contact_us: contact || null,
+
+    faq: faqData
+      ? {
+          ...faqData,
+          content: JSON.parse(faqData.content || "[]")
+        }
+      : null
   };
 };
 
