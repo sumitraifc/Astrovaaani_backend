@@ -1,14 +1,4 @@
-// const service = require('./service');
 
-// exports.register = async(req,res,next)=>{
-//   try{res.json(await service.register(req.body));}
-//   catch(e){next(e);}
-// };
-
-// exports.login = async(req,res,next)=>{
-//   try{res.json(await service.login(req.body));}
-//   catch(e){next(e);}
-// };
 
 const service = require("./service");
 
@@ -35,10 +25,23 @@ exports.verifyOtp = async (req, res) => {
 
 exports.updateProfile = async (req, res) => {
   try {
-    const result = await service.updateProfile(req.user.id, req.body);
-    res.json(result);
+    const result = await service.updateProfile(
+      req.user.id,
+      req.body,
+      req.file
+    );
+
+    return res.json({
+      success: true,
+      message: "Profile updated successfully",
+      data: result
+    });
+
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    return res.status(400).json({
+      success: false,
+      message: err.message
+    });
   }
 };
 

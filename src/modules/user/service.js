@@ -29,18 +29,15 @@ const { generateToken } = require("../../utils/jwt");
 exports.sendOtp = async (mobile) => {
   if (!mobile) throw new Error("Mobile required");
 
-  // 🔥 prevent spam (rate limit)
   const existing = await redis.get(`otp_limit:${mobile}`);
   if (existing) {
     throw new Error("OTP already sent. Try after 1 min");
   }
 
-  const otp = "111111"; // DEV OTP (replace with SMS API)
+  const otp = "111111";
 
-  // store OTP (5 min expiry)
+  // ✅ correct ioredis syntax
   await redis.set(`otp:${mobile}`, otp, "EX", 300);
-
-  // rate limit (1 min lock)
   await redis.set(`otp_limit:${mobile}`, "1", "EX", 60);
 
   return {
@@ -48,7 +45,6 @@ exports.sendOtp = async (mobile) => {
     message: "OTP sent (expires in 5 min)",
   };
 };
-
 /**
  * =========================
  * VERIFY OTP + LOGIN/REGISTER
@@ -58,7 +54,7 @@ exports.verifyOtp = async (mobile, otp) => {
   if (!mobile || !otp) throw new Error("Mobile & OTP required");
 
   const storedOtp = await redis.get(`otp:${mobile}`);
-
+    console.log("storedOtp",storedOtp);
   if (!storedOtp) {
     throw new Error("OTP expired. Please resend OTP");
   }
@@ -122,10 +118,12 @@ exports.verifyOtp = async (mobile, otp) => {
  * UPDATE PROFILE
  * =========================
  */
-exports.updateProfile = async (id, data) => {
+exports.updateProfile = async (id, data, file) => {
   if (!id) throw new Error("User ID required");
 
-  return await repo.updateProfile(id, data);
+  const profileImage = file ? file.filename : null;
+
+  return await repo.updateProfile(id, data, profileImage);
 };
 
 /**

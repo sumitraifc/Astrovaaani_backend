@@ -87,21 +87,33 @@ exports.findById = async (id) => {
 // };
 
 exports.updateProfile = async (id, data, profileImage) => {
-  await pool.query(
+  const [result] = await pool.query(
     `UPDATE users 
-     SET name=?, gender=?, dob=?, birth_time=?, birth_place=?, email=?, profile_image=COALESCE(?, profile_image)
-     WHERE id=?`,
+     SET 
+       name = COALESCE(?, name),
+       email = COALESCE(?, email),
+       mobile = COALESCE(?, mobile),
+       gender = COALESCE(?, gender),
+       dob = COALESCE(?, dob),
+       birth_time = COALESCE(?, birth_time),
+       birth_place = COALESCE(?, birth_place),
+       profile_image = COALESCE(?, profile_image)
+     WHERE id = ?`,
     [
       data.name,
+      data.email,
+      data.mobile,
       data.gender,
       data.dob,
       data.birth_time,
       data.birth_place,
-      data.email,
       profileImage,
       id
     ]
   );
 
-  return { success: true };
+  return {
+    success: true,
+    affectedRows: result.affectedRows
+  };
 };
