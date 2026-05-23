@@ -53,7 +53,7 @@ app.use(express.json());
  * =========================
  */
 app.use("/api/users", require("./modules/user/routes"));
-
+app.use("/api/app-config", require("./modules/appConfig/routes"));
 /**
  * =========================
  * HEALTH CHECK
