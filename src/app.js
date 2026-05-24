@@ -56,6 +56,15 @@ app.use("/api/users", require("./modules/user/routes"));
 app.use("/api/app-config", require("./modules/appConfig/routes"));
 app.use("/api/horoscope",require("./modules/horoscope/routes"));
 
+app.use("/api/orders", require("./modules/orders/routes"));
+
+app.use("/api/wallet", require("./modules/wallet/routes"));
+
+app.use("/api/notifications", require("./modules/notifications/routes"));
+
+app.use("/api/astrologers",require("./modules/astrologers/routes"));
+
+app.use("/api/favorites", require("./modules/favorite/routes"));
 /**
  * =========================
  * HEALTH CHECK
