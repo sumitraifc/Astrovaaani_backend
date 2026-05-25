@@ -7,7 +7,7 @@ const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const xss = require("xss-clean");
 const hpp = require("hpp");
-
+const path = require("path");
 const app = express();
 
 /**
@@ -46,6 +46,11 @@ app.use(limiter);
  * =========================
  */
 app.use(express.json());
+
+
+
+
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 /**
  * =========================

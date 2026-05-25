@@ -9,12 +9,21 @@ exports.getWallet = async (userId) => {
   };
 };
 
-exports.getTransactions = async (userId) => {
-  const transactions = await repo.getTransactions(userId);
+// exports.getTransactions = async (userId) => {
+//   const transactions = await repo.getTransactions(userId);
+
+//   return {
+//     success: true,
+//     transactions
+//   };
+// };
+exports.getTransactions = async (userId, type) => {
+  const transactions = await repo.getTransactions(userId, type);
 
   return {
     success: true,
-    transactions
+    total: transactions.length,
+    data: transactions
   };
 };
 

@@ -34,7 +34,8 @@ exports.updateProfile = async (req, res) => {
       req.file
     );
     console.log("CWD:", process.cwd());
-console.log("FILE:", req.file);
+// console.log("FILE:", req.file);
+
     return res.json({
       success: true,
       message: "Profile updated successfully",

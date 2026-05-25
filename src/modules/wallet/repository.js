@@ -9,19 +9,58 @@ exports.getWallet = async (userId) => {
   return rows[0];
 };
 
-exports.getTransactions = async (userId) => {
-  const [rows] = await db.query(
-    `
-    SELECT * FROM wallet_transactions
-    WHERE user_id=?
-    ORDER BY id DESC
-  `,
+// exports.getTransactions = async (userId) => {
+//   const [rows] = await db.query(
+//     `
+//     SELECT * FROM wallet_transactions
+//     WHERE user_id=?
+//     ORDER BY id DESC
+//   `,
+//     [userId]
+//   );
+
+//   return rows;
+// };
+
+exports.getTransactions = async (userId, type) => {
+
+  // 1. WALLET BALANCE
+  const [walletRows] = await db.query(
+    `SELECT balance FROM wallet WHERE user_id = ?`,
     [userId]
   );
 
-  return rows;
-};
+  const balance = walletRows[0]?.balance || 0;
 
+  // 2. TRANSACTIONS
+  let query = `
+    SELECT 
+      id,
+      user_id,
+      type,
+      amount,
+      reason,
+      created_at
+    FROM wallet_transactions
+    WHERE user_id=?
+  `;
+
+  let params = [userId];
+
+  if (type) {
+    query += ` AND type=?`;
+    params.push(type);
+  }
+
+  query += ` ORDER BY id DESC`;
+
+  const [transactions] = await db.query(query, params);
+
+  return {
+    balance,
+    transactions
+  };
+};
 exports.updateBalance = async (userId, amount) => {
   await db.query(
     `

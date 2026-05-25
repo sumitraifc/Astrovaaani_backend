@@ -49,11 +49,15 @@
 
 
 const multer = require("multer");
-
+ const path = require("path");
+ 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     // cb(null, "uploads"); // local simple
-    cb(null, "/www/wwwroot/Astrowanibackend/uploads");
+    // cb(null, "/www/wwwroot/Astrowanibackend/uploads");
+   
+
+cb(null, path.join(process.cwd(), "uploads"));
     //change on path 
   },
   filename: function (req, file, cb) {
