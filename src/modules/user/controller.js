@@ -1,6 +1,9 @@
 
 
 const service = require("./service");
+const sharp = require("sharp");
+const fs = require("fs");
+const path = require("path");
 
 exports.sendOtp = async (req, res) => {
   try {
@@ -30,7 +33,8 @@ exports.updateProfile = async (req, res) => {
       req.body,
       req.file
     );
-
+    console.log("CWD:", process.cwd());
+console.log("FILE:", req.file);
     return res.json({
       success: true,
       message: "Profile updated successfully",
