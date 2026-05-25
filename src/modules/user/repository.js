@@ -86,6 +86,38 @@ exports.findById = async (id) => {
 //   return { success: true };
 // };
 
+// exports.updateProfile = async (id, data, profileImage) => {
+//   const [result] = await pool.query(
+//     `UPDATE users 
+//      SET 
+//        name = COALESCE(?, name),
+//        email = COALESCE(?, email),
+//        mobile = COALESCE(?, mobile),
+//        gender = COALESCE(?, gender),
+//        dob = COALESCE(?, dob),
+//        birth_time = COALESCE(?, birth_time),
+//        birth_place = COALESCE(?, birth_place),
+//        profile_image = COALESCE(?, profile_image)
+//      WHERE id = ?`,
+//     [
+//       data.name,
+//       data.email,
+//       data.mobile,
+//       data.gender,
+//       data.dob,
+//       data.birth_time,
+//       data.birth_place,
+//       profileImage,
+//       id
+//     ]
+//   );
+
+//   return {
+//     success: true,
+//     affectedRows: result.affectedRows
+//   };
+// };
+
 exports.updateProfile = async (id, data, profileImage) => {
   const [result] = await pool.query(
     `UPDATE users 
@@ -100,14 +132,14 @@ exports.updateProfile = async (id, data, profileImage) => {
        profile_image = COALESCE(?, profile_image)
      WHERE id = ?`,
     [
-      data.name,
-      data.email,
-      data.mobile,
-      data.gender,
-      data.dob,
-      data.birth_time,
-      data.birth_place,
-      profileImage,
+      data.name || null,
+      data.email || null,
+      data.mobile || null,
+      data.gender || null,
+      data.dob || null,
+      data.birth_time || null,
+      data.birth_place || null,
+      profileImage || null,
       id
     ]
   );
