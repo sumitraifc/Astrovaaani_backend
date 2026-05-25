@@ -15,7 +15,7 @@ exports.getWallet = async (req, res) => {
 
 exports.getTransactions = async (req, res) => {
   try {
-    const result = await service.getTransactions(req.user.id);
+    const result = await service.getTransactions(req.user.id, req.query.type );
 
     res.json(result);
   } catch (err) {
