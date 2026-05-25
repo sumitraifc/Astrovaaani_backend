@@ -15,7 +15,7 @@
     "dayjs": "^1.11.20",
     "dockerode": "^5.0.0",
     "dotenv": "^16.6.1",
-    "express": "^4.22.1",
+    "express": "^4.22.2",
     "express-async-handler": "^1.2.0",
     "express-rate-limit": "^8.5.2",
     "helmet": "^8.2.0",
