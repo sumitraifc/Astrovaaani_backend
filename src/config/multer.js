@@ -54,6 +54,7 @@ const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     // cb(null, "uploads"); // local simple
     cb(null, "/www/wwwroot/Astrowanibackend/uploads");
+    //change on path 
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + "-" + file.originalname);
