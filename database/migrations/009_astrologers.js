@@ -18,8 +18,6 @@ module.exports = {
 
         languages VARCHAR(255),
 
-        expertise VARCHAR(255),
-
         chat_charge DECIMAL(10,2) DEFAULT 0,
 
         audio_charge DECIMAL(10,2) DEFAULT 0,

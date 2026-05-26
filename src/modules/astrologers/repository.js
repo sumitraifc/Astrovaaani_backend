@@ -56,14 +56,78 @@ exports.getAll = async () => {
   return rows;
 };
 
-exports.getById = async (id) => {
+// exports.getById = async (id) => {
 
+//   const [rows] = await db.query(
+//     "SELECT * FROM astrologers WHERE id=?",
+//     [id]
+//   );
+
+//   return rows[0];
+// };
+
+
+// exports.getById = async (userId, id) => {
+//   const [rows] = await db.query(
+//     `
+//     SELECT 
+//       a.*,
+//       IF(? IS NULL, 0,
+//         IF(f.id IS NOT NULL, 1, 0)
+//       ) AS is_favourite
+//     FROM astrologers a
+//     LEFT JOIN favorites f 
+//       ON f.astrologer_id = a.id 
+//       AND f.user_id = ?
+//     WHERE a.id = ?
+//     `,
+//     [userId, userId, id]
+//   );
+
+//   return rows[0];
+// };
+
+exports.getById = async (userId, id) => {
   const [rows] = await db.query(
-    "SELECT * FROM astrologers WHERE id=?",
+    `
+    SELECT 
+      a.*,
+
+      IF(? IS NULL, 0,
+        IF(f.id IS NOT NULL, 1, 0)
+      ) AS is_favourite
+
+    FROM astrologers a
+
+    LEFT JOIN favorites f 
+      ON f.astrologer_id = a.id 
+      AND f.user_id = ?
+
+    WHERE a.id = ?
+    `,
+    [userId, userId, id]
+  );
+
+  const data = rows[0];
+
+  // separate simple query for expertise
+  const [expertise] = await db.query(
+    `
+    SELECT 
+      em.id,
+      em.name,
+      em.image
+    FROM astrologer_expertise ae
+    INNER JOIN expertise_master em 
+      ON em.id = ae.expertise_id
+    WHERE ae.astrologer_id = ?
+    `,
     [id]
   );
 
-  return rows[0];
+  data.expertise = expertise || [];
+
+  return data;
 };
 
 exports.update = async (id, data) => {

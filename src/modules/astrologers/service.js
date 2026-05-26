@@ -26,9 +26,18 @@ exports.getAstrologers = async () => {
   };
 };
 
-exports.getAstrologerById = async (id) => {
+// exports.getAstrologerById = async (id) => {
 
-  const astrologer = await repo.getById(id);
+//   const astrologer = await repo.getById(id);
+
+//   return {
+//     success: true,
+//     astrologer
+//   };
+// };
+
+exports.getAstrologerById = async (userId, astrologerId) => {
+  const astrologer = await repo.getById(userId, astrologerId);
 
   return {
     success: true,

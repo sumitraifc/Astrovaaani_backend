@@ -26,12 +26,31 @@ exports.getAstrologers = async (req, res) => {
   }
 };
 
+// exports.getAstrologerById = async (req, res) => {
+//   try {
+//     const result = await service.getAstrologerById(
+//       req.params.id
+//     );
+
+//     res.json(result);
+//   } catch (err) {
+//     res.status(500).json({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// };
+
 exports.getAstrologerById = async (req, res) => {
   try {
+    const userId = req.user?.id || null;  
+
     const result = await service.getAstrologerById(
+      userId,
       req.params.id
     );
-
+ console.log("USER ID:", req.user?.id);
+console.log("ASTRO ID:", req.params.id);
     res.json(result);
   } catch (err) {
     res.status(500).json({

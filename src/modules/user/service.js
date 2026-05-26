@@ -20,12 +20,34 @@ const repo = require("./repository");
 const redis = require("../../config/redis");
 const { v4: uuidv4 } = require("uuid");
 const { generateToken } = require("../../utils/jwt");
+const axios = require("axios");
 
 /**
  * =========================
  * SEND OTP
  * =========================
  */
+// exports.sendOtp = async (mobile) => {
+//   if (!mobile) throw new Error("Mobile required");
+
+//   const existing = await redis.get(`otp_limit:${mobile}`);
+//   if (existing) {
+//     throw new Error("OTP already sent. Try after 1 min");
+//   }
+
+//   const otp = "111111";
+
+//   // ✅ correct ioredis syntax
+//   await redis.set(`otp:${mobile}`, otp, "EX", 300);
+//   await redis.set(`otp_limit:${mobile}`, "1", "EX", 60);
+
+//   return {
+//     success: true,
+//     message: "OTP sent (expires in 5 min)",
+//   };
+// };
+
+
 exports.sendOtp = async (mobile) => {
   if (!mobile) throw new Error("Mobile required");
 
@@ -34,16 +56,40 @@ exports.sendOtp = async (mobile) => {
     throw new Error("OTP already sent. Try after 1 min");
   }
 
-  const otp = "111111";
+  try {
+    const url = "https://indopay.cloud/otp/newsend_otp.php";
 
-  // ✅ correct ioredis syntax
-  await redis.set(`otp:${mobile}`, otp, "EX", 300);
-  await redis.set(`otp_limit:${mobile}`, "1", "EX", 60);
+    const response = await axios.get(url, {
+      params: {
+        merchant_key: "d878a2e452e6da0ba64cc50e8175b195e71b8659386577cf",
+        mobile_no: mobile,
+        digit: 6,
+      },
+    });
 
-  return {
-    success: true,
-    message: "OTP sent (expires in 5 min)",
-  };
+    console.log("OTP API Response:", response.data);
+
+    // OTP extract from provider
+    const otp = response.data?.otp;
+
+    if (!otp) {
+      throw new Error("OTP not received from provider");
+    }
+
+    // store OTP in redis
+    await redis.set(`otp:${mobile}`, otp, "EX", 300);
+    await redis.set(`otp_limit:${mobile}`, "1", "EX", 60);
+
+    return {
+      success: true,
+      message: "OTP sent (expires in 5 min)",
+    };
+
+  } catch (err) {
+    console.error("OTP ERROR:", err.message);
+
+    throw new Error("OTP sending failed");
+  }
 };
 /**
  * =========================
