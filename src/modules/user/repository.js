@@ -55,13 +55,27 @@ exports.findByMobile = async (mobile) => {
 /**
  * FIND BY ID
  */
+// exports.findById = async (id) => {
+//   const [rows] = await pool.query(
+//     "SELECT * FROM users WHERE id = ?",
+//     [id]
+//   );
+
+//   return rows[0];
+// };
 exports.findById = async (id) => {
   const [rows] = await pool.query(
     "SELECT * FROM users WHERE id = ?",
     [id]
   );
 
-  return rows[0];
+  const user = rows[0];
+
+  if (user && user.profile_image) {
+    user.profile_image = `${process.env.BASE_URL}/uploads/${user.profile_image}`;
+  }
+
+  return user;
 };
 
 /**
