@@ -19,6 +19,7 @@ const app = express();
  * =========================
  */
 app.use(helmet());
+
 app.use(cors({
   origin: "*", // later restrict to frontend domain
 }));
@@ -51,11 +52,20 @@ app.use(limiter);
 app.use(express.json());
 
 
+/**
+ * SOCKET.IO
+ */
+// const io = new Server(server, {
+//   cors: {
+//     origin: "*",
+//   },
+// });
+
 
 // 
 // app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 app.use("/uploads", express.static("uploads"));
-require("./sockets/chatSocket")(io);
+// require("./sockets/chatSocket")(io);
 
 /**
  * =========================
