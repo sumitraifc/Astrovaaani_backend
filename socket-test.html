@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Socket Test</title>
+</head>
+
+<body>
+  <h2>Socket.IO Test Client</h2>
+
+  <p id="status">Disconnected</p>
+
+  <input id="msg" placeholder="Enter message" />
+  <button onclick="sendMessage()">Send</button>
+
+  <h3>Messages:</h3>
+  <ul id="messages"></ul>
+
+  <!-- Socket.IO CDN -->
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+  <script>
+    // change URL to your backend
+    const socket = io("http://localhost:5000");
+
+    const status = document.getElementById("status");
+    const messages = document.getElementById("messages");
+
+    socket.on("connect", () => {
+      status.innerText = "Connected: " + socket.id;
+      status.style.color = "green";
+    });
+
+    socket.on("disconnect", () => {
+      status.innerText = "Disconnected";
+      status.style.color = "red";
+    });
+
+    // receive message from server
+    socket.on("receive_message", (data) => {
+      const li = document.createElement("li");
+      li.innerText = data.sender + " : " + data.message;
+      messages.appendChild(li);
+    });
+
+    // send message
+    function sendMessage() {
+      const msg = document.getElementById("msg").value;
+
+      socket.emit("send_message", {
+        message: msg
+      });
+
+      document.getElementById("msg").value = "";
+    }
+  </script>
+
+</body>
+</html>

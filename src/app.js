@@ -85,6 +85,9 @@ app.use("/api/notifications", require("./modules/notifications/routes"));
 app.use("/api/astrologers",require("./modules/astrologers/routes"));
 
 app.use("/api/favorites", require("./modules/favorite/routes"));
+
+app.use("/api/expertise", require("./modules/expertise/routes"));
+
 /**
  * =========================
  * HEALTH CHECK

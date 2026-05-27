@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat Test</title>
+</head>
+
+<body>
+
+<h2>User ↔ Astrologer Chat Test</h2>
+
+<input id="conversationId" placeholder="conversation id" />
+<br><br>
+
+<input id="msg" placeholder="message" />
+
+<button onclick="join()">Join Room</button>
+<button onclick="send('user')">Send as User</button>
+<button onclick="send('astrologer')">Send as Astrologer</button>
+
+<ul id="chat"></ul>
+
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<script>
+
+const socket = io("http://localhost:5000");
+
+const userId = 1;
+const astrologerId = 2;
+
+function join() {
+  const conversationId = document.getElementById("conversationId").value;
+
+  socket.emit("join_room", conversationId);
+}
+
+socket.on("receive_message", (data) => {
+  const li = document.createElement("li");
+  li.innerText = data.sender_type + " : " + data.message;
+  document.getElementById("chat").appendChild(li);
+});
+
+function send(type) {
+
+  const msg = document.getElementById("msg").value;
+  const conversationId = document.getElementById("conversationId").value;
+
+  socket.emit("send_message", {
+    conversation_id: conversationId,
+    sender_id: type === "user" ? userId : astrologerId,
+    sender_type: type,
+    message: msg
+  });
+
+  document.getElementById("msg").value = "";
+}
+
+</script>
+
+</body>
+</html>

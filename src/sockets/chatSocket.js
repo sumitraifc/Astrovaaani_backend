@@ -1,29 +1,30 @@
 module.exports = (io) => {
-
   io.on("connection", (socket) => {
 
-    console.log("User Connected:", socket.id);
+    console.log("Connected:", socket.id);
 
-    // receive message
-    socket.on("send_message", (data) => {
-
-      console.log("Message:", data);
-
-      // send to all users
-      io.emit("receive_message", {
-        sender: socket.id,
-        message: data.message
-      });
-
+    // JOIN ROOM (IMPORTANT)
+    socket.on("join_room", (conversationId) => {
+      socket.join("room_" + conversationId);
+      console.log("Joined room:", conversationId);
     });
 
-    // disconnect
-    socket.on("disconnect", () => {
+    // SEND MESSAGE
+    socket.on("send_message", async (data) => {
+      try {
 
-      console.log("User Disconnected:", socket.id);
+        const saved = await require("../modules/chat/controller")
+          .saveMessage(data);
 
+        io.to("room_" + data.conversation_id).emit(
+          "receive_message",
+          saved
+        );
+
+      } catch (err) {
+        console.log("Socket Error:", err.message);
+      }
     });
 
   });
-
 };
