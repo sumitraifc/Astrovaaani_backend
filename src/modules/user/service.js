@@ -191,3 +191,27 @@ exports.getUser = async (id) => {
     user,
   };
 };
+
+
+
+//family member 
+
+exports.addMember = async (user_id, data) => {
+  return await repo.addMember({
+    uuid: uuidv4(),
+    user_id,
+    ...data
+  });
+};
+
+exports.getMembers = async (user_id) => {
+  return await repo.getMembers(user_id);
+};
+
+exports.getMemberById = async (id, user_id) => {
+  return await repo.getMemberById(id, user_id);
+};
+
+exports.deleteMember = async (id, user_id) => {
+  return await repo.deleteMember(id, user_id);
+};

@@ -66,3 +66,76 @@ exports.healthCheck = (req, res) => {
     status: "OK"
   });
 };
+
+
+///faimely membe 
+exports.addMember = async (req, res) => {
+  try {
+    const result = await service.addMember(req.user.id, req.body);
+
+    res.json({
+      success: true,
+      message: "Family member added",
+      data: result
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+exports.getMembers = async (req, res) => {
+  try {
+    const result = await service.getMembers(req.user.id);
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+exports.getMemberById = async (req, res) => {
+  try {
+    const result = await service.getMemberById(
+      req.params.id,
+      req.user.id
+    );
+
+    res.json({
+      success: true,
+      data: result
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+exports.deleteMember = async (req, res) => {
+  try {
+    await service.deleteMember(
+      req.params.id,
+      req.user.id
+    );
+
+    res.json({
+      success: true,
+      message: "Deleted"
+    });
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};

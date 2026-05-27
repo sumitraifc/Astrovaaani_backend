@@ -163,3 +163,51 @@ exports.updateProfile = async (id, data, profileImage) => {
     affectedRows: result.affectedRows
   };
 };
+
+
+/// faimaly member 
+
+exports.addMember = async (data) => {
+  const [result] = await pool.query(
+    `INSERT INTO user_family_members
+    (uuid, user_id, name, relation, gender, dob, birth_time, birth_place)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      data.uuid,
+      data.user_id,
+      data.name,
+      data.relation,
+      data.gender,
+      data.dob,
+      data.birth_time,
+      data.birth_place
+    ]
+  );
+
+  return result;
+};
+
+exports.getMembers = async (user_id) => {
+  const [rows] = await pool.query(
+    `SELECT * FROM user_family_members WHERE user_id=? ORDER BY id DESC`,
+    [user_id]
+  );
+
+  return rows;
+};
+
+exports.getMemberById = async (id, user_id) => {
+  const [rows] = await pool.query(
+    `SELECT * FROM user_family_members WHERE id=? AND user_id=?`,
+    [id, user_id]
+  );
+
+  return rows[0];
+};
+
+exports.deleteMember = async (id, user_id) => {
+  await pool.query(
+    `DELETE FROM user_family_members WHERE id=? AND user_id=?`,
+    [id, user_id]
+  );
+};

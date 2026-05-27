@@ -25,5 +25,16 @@ router.patch(
 );
 router.get("/getprofile", auth, controller.getUser);
 
-router.get('/', controller.healthCheck); 
+// router.get('/', controller.healthCheck); 
+
+
+//member 
+router.post("/addmember", auth, controller.addMember);
+
+router.get("/member", auth, controller.getMembers);
+
+router.get("/:id", auth, controller.getMemberById);
+
+router.delete("/:id", auth, controller.deleteMember);
+
 module.exports = router;
