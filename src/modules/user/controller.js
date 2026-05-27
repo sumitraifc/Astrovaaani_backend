@@ -71,13 +71,17 @@ exports.healthCheck = (req, res) => {
 ///faimely membe 
 exports.addMember = async (req, res) => {
   try {
-    const result = await service.addMember(req.user.id, req.body);
+    const result = await service.addMember(
+      req.user?.id || null,
+      req.body
+    );
 
     res.json({
       success: true,
-      message: "Family member added",
+      message: "Family member added/updated",
       data: result
     });
+
   } catch (err) {
     res.status(400).json({
       success: false,

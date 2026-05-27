@@ -167,24 +167,99 @@ exports.updateProfile = async (id, data, profileImage) => {
 
 /// faimaly member 
 
-exports.addMember = async (data) => {
-  const [result] = await pool.query(
-    `INSERT INTO user_family_members
-    (uuid, user_id, name, relation, gender, dob, birth_time, birth_place)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      data.uuid,
-      data.user_id,
-      data.name,
-      data.relation,
-      data.gender,
-      data.dob,
-      data.birth_time,
-      data.birth_place
-    ]
-  );
 
-  return result;
+
+exports.addMember = async (data) => {
+  try {
+    // safety trim
+    data.name = data.name?.trim();
+
+    /**
+     * CHECK EXISTING MEMBER
+     */
+    const [existing] = await pool.query(
+      `
+      SELECT id
+      FROM user_family_members
+      WHERE user_id = ?
+        AND name = ?
+        AND dob = ?
+      LIMIT 1
+      `,
+      [
+        data.user_id,
+        data.name,
+        data.dob
+      ]
+    );
+
+    /**
+     * =========================
+     * UPDATE FLOW
+     * =========================
+     */
+    if (existing.length > 0) {
+
+      const [updateResult] = await pool.query(
+        `
+        UPDATE user_family_members
+        SET
+          relation = ?,
+          gender = ?,
+          birth_time = ?,
+          birth_place = ?,
+          updated_at = NOW()
+        WHERE id = ?
+        `,
+        [
+          data.relation,
+          data.gender,
+          data.birth_time,
+          data.birth_place,
+          existing[0].id
+        ]
+      );
+
+      return {
+        action: "update",
+        member_id: existing[0].id,
+        result: updateResult
+      };
+    }
+
+    /**
+     * =========================
+     * INSERT FLOW
+     * =========================
+     */
+    const [insertResult] = await pool.query(
+      `
+      INSERT INTO user_family_members
+      (uuid, user_id, name, relation, gender, dob, birth_time, birth_place)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `,
+      [
+        data.uuid,
+        data.user_id,
+        data.name,
+        data.relation,
+        data.gender,
+        data.dob,
+        data.birth_time,
+        data.birth_place
+      ]
+    );
+
+    return {
+      action: "insert",
+      member_id: insertResult.insertId,
+      result: insertResult
+    };
+
+  } catch (err) {
+    console.log("addMember error:", err.message);
+    throw err;
+  }
 };
 
 exports.getMembers = async (user_id) => {

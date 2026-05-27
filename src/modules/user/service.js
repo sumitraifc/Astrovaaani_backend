@@ -197,11 +197,14 @@ exports.getUser = async (id) => {
 //family member 
 
 exports.addMember = async (user_id, data) => {
-  return await repo.addMember({
+
+  const payload = {
     uuid: uuidv4(),
     user_id,
     ...data
-  });
+  };
+
+  return await repo.addMember(payload);
 };
 
 exports.getMembers = async (user_id) => {
