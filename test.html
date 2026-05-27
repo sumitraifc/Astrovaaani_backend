@@ -1,58 +1,826 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Chat Test</title>
+
+  <title>Advanced Realtime Chat Test</title>
+
+  <style>
+
+    *{
+      margin:0;
+      padding:0;
+      box-sizing:border-box;
+    }
+
+    body{
+      font-family:Arial;
+      padding:20px;
+      background:#f3f4f6;
+    }
+
+    h2,h3{
+      margin-bottom:10px;
+    }
+
+    input,
+    button,
+    select{
+      padding:10px;
+      margin:5px;
+      border-radius:6px;
+      border:1px solid #ccc;
+    }
+
+    button{
+      cursor:pointer;
+      background:#2563eb;
+      color:#fff;
+      border:none;
+    }
+
+    button:hover{
+      opacity:.9;
+    }
+
+    #chat{
+      background:#fff;
+      padding:15px;
+      border-radius:10px;
+      height:500px;
+      overflow:auto;
+      list-style:none;
+      border:1px solid #ddd;
+      margin-top:10px;
+    }
+
+    li{
+      margin-bottom:12px;
+      padding:12px;
+      border-radius:10px;
+      word-break:break-word;
+    }
+
+    .system{
+      background:#dbeafe;
+    }
+
+    .user{
+      background:#dcfce7;
+    }
+
+    .astrologer{
+      background:#fce7f3;
+    }
+
+    .typing{
+      color:orange;
+      font-style:italic;
+      margin-top:10px;
+    }
+
+    img{
+      border-radius:10px;
+      margin-top:8px;
+      max-width:250px;
+    }
+
+    .top-box{
+      background:#fff;
+      padding:15px;
+      border-radius:10px;
+      margin-bottom:20px;
+      border:1px solid #ddd;
+    }
+
+  </style>
+
 </head>
 
 <body>
 
-<h2>User ↔ Astrologer Chat Test</h2>
+<h2>Realtime Socket Chat Test</h2>
 
-<input id="conversationId" placeholder="conversation id" />
-<br><br>
+<div class="top-box">
 
-<input id="msg" placeholder="message" />
+  <h3>Create Conversation</h3>
 
-<button onclick="join()">Join Room</button>
-<button onclick="send('user')">Send as User</button>
-<button onclick="send('astrologer')">Send as Astrologer</button>
+  <label>User ID:</label>
 
-<ul id="chat"></ul>
+  <input
+    id="userId"
+    value="1"
+  />
+
+  <label>Astrologer ID:</label>
+
+  <input
+    id="astrologerId"
+    value="2"
+  />
+
+  <button onclick="createConversation()">
+    Create Conversation
+  </button>
+
+</div>
+
+<div class="top-box">
+
+  <h3>Conversation</h3>
+
+  <label>Conversation ID:</label>
+
+  <input
+    id="conversationId"
+    style="width:320px"
+  />
+
+  <button onclick="joinRoom()">
+    Join Room
+  </button>
+
+  <button onclick="leaveRoom()">
+    Leave Room
+  </button>
+
+</div>
+
+<div class="top-box">
+
+  <h3>Send Message</h3>
+
+  <select id="senderType">
+
+    <option value="user">
+      User
+    </option>
+
+    <option value="astrologer">
+      Astrologer
+    </option>
+
+  </select>
+
+  <input
+    id="msg"
+    placeholder="Type message..."
+    style="width:300px"
+  />
+
+  <button onclick="sendMessage()">
+    Send
+  </button>
+
+  <br><br>
+
+  <label>Send Image/File:</label>
+
+  <input
+    type="file"
+    id="fileInput"
+  />
+
+  <button onclick="sendFile()">
+    Upload
+  </button>
+
+</div>
+
+<div class="top-box">
+
+  <h3>Status</h3>
+
+  <div
+    id="typing"
+    class="typing"
+  ></div>
+
+  <ul id="chat"></ul>
+
+</div>
 
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
 <script>
 
-const socket = io("http://localhost:5000");
+const socket = io(
+  "https://astorvani.codescarts.com/",
+  // "http://localhost:5000",
+  {
+    transports:["websocket"]
+  }
+);
 
-const userId = 1;
-const astrologerId = 2;
+/**
+ * ============================
+ * SOCKET CONNECT
+ * ============================
+ */
+socket.on("connect", ()=>{
 
-function join() {
-  const conversationId = document.getElementById("conversationId").value;
-
-  socket.emit("join_room", conversationId);
-}
-
-socket.on("receive_message", (data) => {
-  const li = document.createElement("li");
-  li.innerText = data.sender_type + " : " + data.message;
-  document.getElementById("chat").appendChild(li);
+  addSystem(
+    "Connected : " + socket.id
+  );
 });
 
-function send(type) {
+/**
+ * ============================
+ * CREATE CONVERSATION
+ * ============================
+ */
+function createConversation(){
 
-  const msg = document.getElementById("msg").value;
-  const conversationId = document.getElementById("conversationId").value;
+  const user_id = Number(
+    document.getElementById(
+      "userId"
+    ).value
+  );
 
-  socket.emit("send_message", {
-    conversation_id: conversationId,
-    sender_id: type === "user" ? userId : astrologerId,
-    sender_type: type,
-    message: msg
-  });
+  const astrologer_id = Number(
+    document.getElementById(
+      "astrologerId"
+    ).value
+  );
 
-  document.getElementById("msg").value = "";
+  socket.emit(
+    "create_conversation",
+    {
+      user_id,
+      astrologer_id
+    },
+
+    (response)=>{
+
+      console.log(response);
+
+      if(!response.success){
+
+        return alert(
+          response.message
+        );
+      }
+
+      /**
+       * SET CONVERSATION ID
+       */
+      document.getElementById(
+        "conversationId"
+      ).value =
+        response.conversation
+          .conversation_id;
+
+      /**
+       * SYSTEM MESSAGE
+       */
+      addSystem(
+        `
+        Conversation Created :
+        ${response.conversation.conversation_id}
+        `
+      );
+
+      addSystem(
+        `
+        User :
+        ${response.conversation.user_name}
+        `
+      );
+
+      addSystem(
+        `
+        Astrologer :
+        ${response.conversation.astrologer_name}
+        `
+      );
+
+      addSystem(
+        `
+        Charge Per Minute :
+        ₹${response.conversation.charge_per_min}
+        `
+      );
+
+      addSystem(
+        `
+        Wallet Balance :
+        ₹${response.wallet_balance}
+        `
+      );
+
+      /**
+       * AUTO JOIN
+       */
+      joinRoom();
+    }
+  );
+}
+
+/**
+ * ============================
+ * JOIN ROOM
+ * ============================
+ */
+function joinRoom(){
+
+  const conversation_id =
+    document.getElementById(
+      "conversationId"
+    ).value;
+
+  const sender_type =
+    document.getElementById(
+      "senderType"
+    ).value;
+
+  if(!conversation_id){
+
+    return alert(
+      "Enter conversation id"
+    );
+  }
+
+  socket.emit(
+    "join_room",
+    {
+      conversation_id,
+      sender_type
+    }
+  );
+
+  addSystem(
+    `
+    Joined Room :
+    ${conversation_id}
+    `
+  );
+}
+
+/**
+ * ============================
+ * LEAVE ROOM
+ * ============================
+ */
+function leaveRoom(){
+
+  const conversation_id =
+    document.getElementById(
+      "conversationId"
+    ).value;
+
+  const sender_type =
+    document.getElementById(
+      "senderType"
+    ).value;
+
+  socket.emit(
+    "leave_room",
+    {
+      conversation_id,
+      sender_type
+    }
+  );
+
+  addSystem(
+    "Room Left"
+  );
+}
+
+/**
+ * ============================
+ * SEND MESSAGE
+ * ============================
+ */
+function sendMessage(){
+
+  const sender_type =
+    document.getElementById(
+      "senderType"
+    ).value;
+
+  const conversation_id =
+    document.getElementById(
+      "conversationId"
+    ).value;
+
+  const sender_id =
+    sender_type === "user"
+    ? Number(
+        document.getElementById(
+          "userId"
+        ).value
+      )
+    : Number(
+        document.getElementById(
+          "astrologerId"
+        ).value
+      );
+
+  const message =
+    document.getElementById(
+      "msg"
+    ).value;
+
+  if(!message){
+
+    return alert(
+      "Enter message"
+    );
+  }
+
+  socket.emit(
+    "send_message",
+    {
+      conversation_id,
+      sender_id,
+      sender_type,
+      message,
+      message_type:"text"
+    }
+  );
+
+  document.getElementById(
+    "msg"
+  ).value = "";
+}
+
+/**
+ * ============================
+ * SEND FILE
+ * ============================
+ */
+function sendFile(){
+
+  const file =
+    document.getElementById(
+      "fileInput"
+    ).files[0];
+
+  if(!file){
+
+    return alert(
+      "Select file"
+    );
+  }
+
+  const sender_type =
+    document.getElementById(
+      "senderType"
+    ).value;
+
+  const conversation_id =
+    document.getElementById(
+      "conversationId"
+    ).value;
+
+  const sender_id =
+    sender_type === "user"
+    ? Number(
+        document.getElementById(
+          "userId"
+        ).value
+      )
+    : Number(
+        document.getElementById(
+          "astrologerId"
+        ).value
+      );
+
+  const reader =
+    new FileReader();
+
+  reader.onload = function(){
+
+    socket.emit(
+      "send_message",
+      {
+        conversation_id,
+        sender_id,
+        sender_type,
+
+        message:file.name,
+
+        message_type:
+          file.type.startsWith(
+            "image/"
+          )
+          ? "image"
+          : "file",
+
+        file_url:
+          reader.result
+      }
+    );
+  };
+
+  reader.readAsDataURL(file);
+}
+
+/**
+ * ============================
+ * TYPING
+ * ============================
+ */
+document
+.getElementById("msg")
+.addEventListener(
+  "input",
+  ()=>{
+
+    const sender_type =
+      document.getElementById(
+        "senderType"
+      ).value;
+
+    const conversation_id =
+      document.getElementById(
+        "conversationId"
+      ).value;
+
+    socket.emit(
+      "typing",
+      {
+        conversation_id,
+        sender_type
+      }
+    );
+  }
+);
+
+/**
+ * ============================
+ * TYPING LISTENER
+ * ============================
+ */
+socket.on(
+  "typing",
+  (data)=>{
+
+    document.getElementById(
+      "typing"
+    ).innerHTML =
+      `
+      ${data.sender_type}
+      typing...
+      `;
+
+    setTimeout(()=>{
+
+      document.getElementById(
+        "typing"
+      ).innerHTML = "";
+
+    },1500);
+  }
+);
+
+/**
+ * ============================
+ * RECEIVE MESSAGE
+ * ============================
+ */
+socket.on(
+  "receive_message",
+  (data)=>{
+
+    console.log(
+      "MESSAGE RECEIVED",
+      data
+    );
+
+    const li =
+      document.createElement("li");
+
+    li.className =
+      data.sender_type;
+
+    let html = `
+      <b>
+        ${
+          data.sender_name ||
+          data.sender_type
+        }
+      </b>
+
+      <br/><br/>
+    `;
+
+    /**
+     * TEXT
+     */
+    if(
+      data.message_type === "text"
+    ){
+
+      html += `
+        ${data.message}
+      `;
+    }
+
+    /**
+     * IMAGE
+     */
+    else if(
+      data.message_type === "image"
+    ){
+
+      html += `
+        <img
+          src="${data.file_url}"
+        />
+      `;
+    }
+
+    /**
+     * FILE
+     */
+    else{
+
+      html += `
+        <a
+          href="${data.file_url}"
+          target="_blank"
+        >
+          ${data.message}
+        </a>
+      `;
+    }
+
+    html += `
+
+      <br/><br/>
+
+      <small>
+        Seen :
+        ${
+          data.is_read
+          ? "YES"
+          : "NO"
+        }
+      </small>
+
+      <br/>
+
+      <small>
+        Time :
+        ${
+          data.sent_at || ""
+        }
+      </small>
+    `;
+
+    li.innerHTML = html;
+
+    document
+      .getElementById("chat")
+      .appendChild(li);
+
+    document
+      .getElementById("chat")
+      .scrollTop =
+      document
+        .getElementById("chat")
+        .scrollHeight;
+
+    /**
+     * AUTO SEEN
+     */
+    socket.emit(
+      "seen_messages",
+      {
+        conversation_id:
+          data.conversation_id
+      }
+    );
+  }
+);
+
+/**
+ * ============================
+ * MESSAGE SEEN
+ * ============================
+ */
+socket.on(
+  "messages_seen",
+  ()=>{
+
+    addSystem(
+      "Messages Seen"
+    );
+  }
+);
+
+/**
+ * ============================
+ * WALLET UPDATED
+ * ============================
+ */
+socket.on(
+  "wallet_updated",
+  (data)=>{
+
+    addSystem(
+      `
+      ₹${data.deducted}
+      deducted
+
+      <br/>
+
+      Remaining :
+      ₹${data.remaining_balance}
+      `
+    );
+  }
+);
+
+/**
+ * ============================
+ * LOW BALANCE
+ * ============================
+ */
+socket.on(
+  "low_balance",
+  (data)=>{
+
+    addSystem(
+      `
+      ⚠ Low Balance :
+      ₹${data.balance}
+      `
+    );
+  }
+);
+
+/**
+ * ============================
+ * USER JOINED
+ * ============================
+ */
+socket.on(
+  "user_joined",
+  (data)=>{
+
+    addSystem(
+      `
+      User Joined :
+      ${data.conversation_id}
+      `
+    );
+  }
+);
+
+/**
+ * ============================
+ * CHAT ENDED
+ * ============================
+ */
+socket.on(
+  "chat_ended",
+  (data)=>{
+
+    addSystem(
+      `
+      Chat Ended
+
+      <br/><br/>
+
+      Amount :
+      ₹${data.amount || 0}
+
+      <br/>
+
+      Duration :
+      ${data.duration || 0} min
+      `
+    );
+  }
+);
+
+/**
+ * ============================
+ * SYSTEM MESSAGE
+ * ============================
+ */
+function addSystem(message){
+
+  const li =
+    document.createElement("li");
+
+  li.className =
+    "system";
+
+  li.innerHTML =
+    message;
+
+  document
+    .getElementById("chat")
+    .appendChild(li);
+
+  document
+    .getElementById("chat")
+    .scrollTop =
+    document
+      .getElementById("chat")
+      .scrollHeight;
 }
 
 </script>
