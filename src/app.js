@@ -88,6 +88,8 @@ app.use("/api/favorites", require("./modules/favorite/routes"));
 
 app.use("/api/expertise", require("./modules/expertise/routes"));
 
+app.use("/api/call", require("./modules/call/routes"));
+
 /**
  * =========================
  * HEALTH CHECK
