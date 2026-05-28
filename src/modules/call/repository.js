@@ -23,7 +23,7 @@ exports.createCallHistory = async (data) => {
 
         console.log("RUNNING QUERY...");
 
-        const [result] = await db.execute(
+        const [result] = await db.query(
             sql,
             [
                 data.user_id,

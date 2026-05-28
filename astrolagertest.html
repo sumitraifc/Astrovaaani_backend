@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astrologer Socket Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f6f8; color: #1f2937; padding: 24px; }
+    h1, h2 { margin-bottom: 12px; }
+    .card { background: #fff; border: 1px solid #d1d5db; border-radius: 10px; padding: 18px; margin-bottom: 18px; }
+    label { display: block; margin: 10px 0 4px; font-weight: 600; }
+    input, select, button { width: 100%; max-width: 380px; padding: 10px 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #cbd5e1; }
+    button { background: #2563eb; color: white; border: none; cursor: pointer; }
+    button:hover { opacity: 0.93; }
+    .status { font-weight: 700; margin-bottom: 8px; }
+    .list-item { padding: 10px; margin-bottom: 8px; border-radius: 8px; background: #eef2ff; }
+    .small { font-size: 0.94rem; color: #475569; }
+    pre { background: #111827; color: #f8fafc; padding: 12px; border-radius: 8px; overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <h1>Astrologer Socket Test</h1>
+  <div class="card">
+    <div class="status" id="connectionStatus">Connecting...</div>
+    <div class="small">Default socket endpoint: <strong>http://localhost:5000</strong></div>
+  </div>
+
+  <div class="card">
+    <h2>1. Fetch Astrologer List</h2>
+    <button onclick="requestAstrologerList()">Get Astrologer List</button>
+    <div id="listResult"></div>
+  </div>
+
+  <div class="card">
+    <h2>2. Update Astrologer Online Status</h2>
+    <label for="statusAstrologerId">Astrologer ID</label>
+    <input id="statusAstrologerId" type="number" placeholder="Enter astrologer ID" value="1" />
+    <label for="statusValue">Online Status</label>
+    <select id="statusValue">
+      <option value="1">Online</option>
+      <option value="0">Offline</option>
+    </select>
+    <button onclick="updateAstrologerStatus()">Update Status</button>
+  </div>
+
+  <div class="card">
+    <h2>3. Update Astrologer Rating</h2>
+    <label for="ratingAstrologerId">Astrologer ID</label>
+    <input id="ratingAstrologerId" type="number" placeholder="Enter astrologer ID" value="1" />
+    <label for="ratingValue">Rating</label>
+    <input id="ratingValue" type="number" min="0" max="5" step="0.1" placeholder="Enter rating" value="4.5" />
+    <button onclick="updateAstrologerRating()">Update Rating</button>
+  </div>
+
+  <div class="card">
+    <h2>Socket Events</h2>
+    <div id="eventsLog"></div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    const socket = io("http://localhost:5000", { transports: ["websocket"] });
+
+    const connectionStatus = document.getElementById("connectionStatus");
+    const listResult = document.getElementById("listResult");
+    const eventsLog = document.getElementById("eventsLog");
+
+    function logEvent(title, payload) {
+      const container = document.createElement("div");
+      const heading = document.createElement("strong");
+      heading.innerText = title;
+      const pre = document.createElement("pre");
+      pre.innerText = JSON.stringify(payload, null, 2);
+      container.appendChild(heading);
+      container.appendChild(pre);
+      eventsLog.prepend(container);
+    }
+
+    socket.on("connect", () => {
+      connectionStatus.innerText = `Connected: ${socket.id}`;
+      connectionStatus.style.color = "green";
+      logEvent("connect", { socketId: socket.id });
+    });
+
+    socket.on("disconnect", () => {
+      connectionStatus.innerText = "Disconnected";
+      connectionStatus.style.color = "red";
+      logEvent("disconnect", { message: "Socket disconnected" });
+    });
+
+    socket.on("astrologer:list_updated", (payload) => {
+      logEvent("astrologer:list_updated", payload);
+      if (payload.data && Array.isArray(payload.data)) {
+        listResult.innerHTML = payload.data.map(a => `
+          <div class="list-item">
+            <strong>${a.name} (ID: ${a.id})</strong><br>
+            Status: ${a.is_online ? 'Online' : 'Offline'} | Chat: ${a.chat_status}<br>
+            Rating: ${a.rating} | Expertise: ${a.expertise || 'N/A'}
+          </div>
+        `).join("");
+      } else {
+        listResult.innerHTML = `<div class="small">${payload.message || 'No data returned.'}</div>`;
+      }
+    });
+
+    socket.on("astrologer:single_updated", (payload) => {
+      logEvent("astrologer:single_updated", payload);
+    });
+
+    socket.on("connect_error", (error) => {
+      connectionStatus.innerText = "Connection Error";
+      connectionStatus.style.color = "orange";
+      logEvent("connect_error", { error: error.message });
+    });
+
+    function requestAstrologerList() {
+      socket.emit("astrologer:get_list");
+    }
+
+    function updateAstrologerStatus() {
+      const astrologerId = Number(document.getElementById("statusAstrologerId").value);
+      const isOnline = Number(document.getElementById("statusValue").value);
+      socket.emit("astrologer:update_status", { astrologer_id: astrologerId, is_online: isOnline });
+    }
+
+    function updateAstrologerRating() {
+      const astrologerId = Number(document.getElementById("ratingAstrologerId").value);
+      const rating = Number(document.getElementById("ratingValue").value);
+      socket.emit("astrologer:update_rating", { astrologer_id: astrologerId, rating });
+    }
+  </script>
+</body>
+</html>

@@ -1,5 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const db = require("../config/db");
+const { setAstrologerOnlineStatus, setAstrologerChatStatus } = require("./astrologerHandler");
 
 const activeTimers = {};
 const onlineUsers = {};
@@ -146,6 +147,8 @@ module.exports = (io, socket) => {
         [astrologer_id]
       );
 
+      await setAstrologerChatStatus(io, astrologer_id, "busy");
+
       /**
        * GET CONVERSATION
        */
@@ -211,7 +214,7 @@ module.exports = (io, socket) => {
        */
       const [roomRows] = await db.query(
         `
-        SELECT id
+        SELECT id, astrologer_id, user_id
         FROM chat_conversations
         WHERE conversation_id = ?
         LIMIT 1
@@ -224,6 +227,13 @@ module.exports = (io, socket) => {
       }
 
       socket.join("room_" + conversation_id);
+
+      onlineUsers[socket.id] = {
+        conversation_id,
+        sender_type,
+        astrologer_id: roomRows[0].astrologer_id,
+        user_id: roomRows[0].user_id
+      };
 
       /**
        * ONLINE STATUS
@@ -687,6 +697,8 @@ module.exports = (io, socket) => {
           `,
           [convRows[0].astrologer_id]
         );
+
+        await setAstrologerOnlineStatus(io, convRows[0].astrologer_id, 1);
       }
 
       io.to("room_" + conversation_id).emit("chat_ended", {
@@ -710,7 +722,7 @@ module.exports = (io, socket) => {
       return;
     }
 
-    const { conversation_id } = onlineUser;
+    const { conversation_id, sender_type, astrologer_id } = onlineUser;
 
     /**
      * STOP TIMER
@@ -757,6 +769,12 @@ module.exports = (io, socket) => {
         `,
         [convRows[0].astrologer_id]
       );
+
+      if (sender_type === "astrologer" && astrologer_id) {
+        await setAstrologerOnlineStatus(io, astrologer_id, 0);
+      } else if (astrologer_id) {
+        await setAstrologerOnlineStatus(io, astrologer_id, 1);
+      }
     }
 
     delete onlineUsers[socket.id];

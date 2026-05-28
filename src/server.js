@@ -45,7 +45,7 @@ const io = new Server(server, {
 /**
  * SOCKET EVENTS
  */
-require("./sockets/chatSocket")(io);
+require("./sockets/socket")(io);
 
 /**
  * START SERVER

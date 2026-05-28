@@ -1,5 +1,6 @@
 const chatHandlers = require("./chatHandlers");
 const callHandlers = require("./callHandlers");
+const { astrologerSocket } = require("./astrologerHandler");
 
 /**
  * =========================================
@@ -16,6 +17,9 @@ module.exports = (io) => {
     // Initialize call handlers
     const callHandle = callHandlers(io, socket);
 
+    // Initialize astrologer list handlers
+    astrologerSocket(io, socket);
+
     /**
      * =========================================
      * DISCONNECT HANDLER
@@ -26,7 +30,7 @@ module.exports = (io) => {
         console.log("Socket Disconnected:", socket.id);
 
         // Handle call disconnections
-        callHandle.handleCallDisconnect();
+        await callHandle.handleCallDisconnect();
 
         // Handle chat disconnections
         await chatHandle.handleChatDisconnect();

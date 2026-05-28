@@ -14,6 +14,10 @@ exports.generateAgoraToken = async (body) => {
 
     console.log("=========== SERVICE HIT ===========");
 
+    if (!APP_ID || !APP_CERTIFICATE) {
+        throw new Error("Agora credentials (APP_ID or APP_CERTIFICATE) not configured in environment variables");
+    }
+
     console.log("REQUEST BODY => ", body);
 
     const {

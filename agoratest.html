@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agora Call Test</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f3f4f6; color: #111827; padding: 20px; }
+    .panel { background: #fff; border: 1px solid #d1d5db; border-radius: 12px; padding: 18px; margin-bottom: 18px; }
+    h1, h2 { margin: 0 0 14px; }
+    label { display: block; margin: 10px 0 4px; font-weight: 600; }
+    input, select, button, textarea { width: 100%; max-width: 450px; padding: 10px 12px; border-radius: 8px; border: 1px solid #cbd5e1; margin-bottom: 12px; }
+    button { background: #2563eb; color: white; cursor: pointer; border: none; }
+    button:hover { opacity: 0.95; }
+    #log { background: #111827; color: #f8fafc; padding: 12px; border-radius: 10px; min-height: 180px; overflow-y: auto; white-space: pre-wrap; }
+    .status { font-weight: 700; margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <h1>Agora Call Socket Test</h1>
+
+  <div class="panel">
+    <div class="status" id="connectionStatus">Connecting...</div>
+    <label for="serverUrl">Server URL</label>
+    <input id="serverUrl" value="http://localhost:5000" />
+    <button onclick="connectSocket()">Connect Socket</button>
+  </div>
+
+  <div class="panel">
+    <h2>Register</h2>
+    <label for="registerId">User / Astrologer ID</label>
+    <input id="registerId" type="number" value="1" />
+    <button onclick="registerUser()">Register</button>
+  </div>
+
+  <div class="panel">
+    <h2>Initiate Call</h2>
+    <label for="callerId">Caller User ID</label>
+    <input id="callerId" type="number" value="1" />
+    <label for="calleeId">Astrologer ID</label>
+    <input id="calleeId" type="number" value="2" />
+    <label for="callType">Call Type</label>
+    <select id="callType">
+      <option value="audio">Audio</option>
+      <option value="video">Video</option>
+    </select>
+    <button onclick="initiateCall()">Initiate Call</button>
+  </div>
+
+  <div class="panel">
+    <h2>Respond to Call</h2>
+    <label for="responseCallId">Call ID</label>
+    <input id="responseCallId" placeholder="Enter call_id from call-requested" />
+    <label for="responseUserId">Caller User ID</label>
+    <input id="responseUserId" type="number" value="1" />
+    <label for="responseAstrologerId">Astrologer ID</label>
+    <input id="responseAstrologerId" type="number" value="2" />
+    <button onclick="acceptCall()">Accept Call</button>
+    <button onclick="declineCall()" style="background:#dc2626; margin-top: 8px;">Decline Call</button>
+    <button onclick="endCall()" style="background:#6b7280; margin-top: 8px;">End Call</button>
+  </div>
+
+  <div class="panel">
+    <h2>Events Log</h2>
+    <div id="log"></div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  <script>
+    let socket;
+    let currentTokenData = null;
+
+    function connectSocket() {
+      const url = document.getElementById('serverUrl').value.trim();
+      if (!url) return;
+
+      if (socket && socket.connected) {
+        log('Already connected to ' + url);
+        return;
+      }
+
+      socket = io(url, { transports: ['websocket'] });
+
+      socket.on('connect', () => {
+        document.getElementById('connectionStatus').innerText = `Connected: ${socket.id}`;
+        document.getElementById('connectionStatus').style.color = 'green';
+        log('socket connected: ' + socket.id);
+      });
+
+      socket.on('disconnect', () => {
+        document.getElementById('connectionStatus').innerText = 'Disconnected';
+        document.getElementById('connectionStatus').style.color = 'red';
+        log('socket disconnected');
+      });
+
+      socket.on('connect_error', (err) => {
+        document.getElementById('connectionStatus').innerText = 'Connect error';
+        document.getElementById('connectionStatus').style.color = 'orange';
+        log('connect_error: ' + err.message);
+      });
+
+      socket.on('call-initiated', (payload) => {
+        log('call-initiated event received: ' + JSON.stringify(payload, null, 2));
+      });
+
+      socket.on('call-requested', (payload) => {
+        log('call-requested response: ' + JSON.stringify(payload, null, 2));
+        if (payload && payload.data) {
+          currentTokenData = payload.data;
+          document.getElementById('responseCallId').value = payload.data.call_id || '';
+        }
+      });
+
+      socket.on('call-accepted', (payload) => {
+        log('call-accepted: ' + JSON.stringify(payload, null, 2));
+      });
+
+      socket.on('call-declined', (payload) => {
+        log('call-declined: ' + JSON.stringify(payload, null, 2));
+      });
+
+      socket.on('call-ended', (payload) => {
+        log('call-ended: ' + JSON.stringify(payload, null, 2));
+      });
+
+      socket.on('call-failed', (payload) => {
+        log('call-failed: ' + JSON.stringify(payload, null, 2));
+      });
+    }
+
+    function registerUser() {
+      if (!socket) {
+        log('Socket not connected');
+        return;
+      }
+      const id = Number(document.getElementById('registerId').value);
+      socket.emit('register', id);
+      log('emit register: ' + id);
+    }
+
+    function initiateCall() {
+      if (!socket) {
+        log('Socket not connected');
+        return;
+      }
+      const user_id = Number(document.getElementById('callerId').value);
+      const astrologer_id = Number(document.getElementById('calleeId').value);
+      const call_type = document.getElementById('callType').value;
+      const data = {
+        user_id,
+        astrologer_id,
+        call_type,
+        user_details: { name: 'User ' + user_id },
+        astrologer_details: { name: 'Astrologer ' + astrologer_id }
+      };
+      socket.emit('call-initiate', data);
+      log('emit call-initiate: ' + JSON.stringify(data, null, 2));
+    }
+
+    function acceptCall() {
+      if (!socket) {
+        log('Socket not connected');
+        return;
+      }
+      const call_id = document.getElementById('responseCallId').value;
+      const user_id = Number(document.getElementById('responseUserId').value);
+      const astrologer_id = Number(document.getElementById('responseAstrologerId').value);
+      const data = { call_id, user_id, astrologer_id, channel_name: currentTokenData?.channel_name || '', call_type: currentTokenData?.call_type || '' };
+      socket.emit('call-accepted', data);
+      log('emit call-accepted: ' + JSON.stringify(data, null, 2));
+    }
+
+    function declineCall() {
+      if (!socket) {
+        log('Socket not connected');
+        return;
+      }
+      const call_id = document.getElementById('responseCallId').value;
+      const user_id = Number(document.getElementById('responseUserId').value);
+      const astrologer_id = Number(document.getElementById('responseAstrologerId').value);
+      const data = { call_id, user_id, astrologer_id };
+      socket.emit('call-declined', data);
+      log('emit call-declined: ' + JSON.stringify(data, null, 2));
+    }
+
+    function endCall() {
+      if (!socket) {
+        log('Socket not connected');
+        return;
+      }
+      const call_id = document.getElementById('responseCallId').value;
+      const user_id = Number(document.getElementById('responseUserId').value);
+      const astrologer_id = Number(document.getElementById('responseAstrologerId').value);
+      const data = { call_id, user_id, astrologer_id };
+      socket.emit('call-ended', data);
+      log('emit call-ended: ' + JSON.stringify(data, null, 2));
+    }
+
+    function log(message) {
+      const logArea = document.getElementById('log');
+      logArea.textContent = `${new Date().toLocaleTimeString()} - ${message}\n\n` + logArea.textContent;
+    }
+  </script>
+</body>
+</html>
