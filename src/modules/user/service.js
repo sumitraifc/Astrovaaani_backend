@@ -97,37 +97,52 @@ exports.sendOtp = async (mobile) => {
  * =========================
  */
 exports.verifyOtp = async (mobile, otp) => {
-  if (!mobile || !otp) throw new Error("Mobile & OTP required");
+
+  if (!mobile || !otp) {
+    throw new Error("Mobile & OTP required");
+  }
 
   const storedOtp = await redis.get(`otp:${mobile}`);
-    console.log("storedOtp",storedOtp);
+
+  console.log("storedOtp", storedOtp);
+
+  /**
+   * OTP EXPIRED
+   */
   if (!storedOtp) {
     throw new Error("OTP expired. Please resend OTP");
   }
 
+  /**
+   * INVALID OTP
+   */
   if (storedOtp !== otp) {
     throw new Error("Invalid OTP");
   }
 
+  /**
+   * FIND USER
+   */
   let user = await repo.findByMobile(mobile);
 
   /**
-   * NEW USER CREATE
+   * NEW USER
    */
   if (!user) {
-    user = await repo.create({
-      uuid: uuidv4(),
+
+    // OTP remove
+    await redis.del(`otp:${mobile}`);
+
+    return {
+      success: false,
+      statusCode: 401,
+
+      is_new_user: true,
+
+      message: "User not registered. Please complete registration",
+
       mobile,
-      name: `User_${Math.floor(Math.random() * 9999)}`,
-      email: null,
-      gender: null,
-      dob: null,
-      birth_time: null,
-      birth_place: null,
-      profile_image: null,
-      status: "active",
-      is_verified: true,
-    });
+    };
   }
 
   /**
@@ -144,21 +159,79 @@ exports.verifyOtp = async (mobile, otp) => {
     id: user.id,
     mobile: user.mobile,
     uuid: user.uuid,
+    status: user.status,
   });
 
   /**
-   * CLEAN OTP AFTER SUCCESS
+   * DELETE OTP
    */
   await redis.del(`otp:${mobile}`);
 
   return {
     success: true,
     message: "Login successful",
+
+    is_new_user: false,
+
     token,
+
     user,
   };
 };
 
+
+exports.register = async (data) => {
+
+  /**
+   * CHECK USER EXISTS
+   */
+  const existing = await repo.findByMobile(data.mobile);
+
+  if (existing) {
+    throw new Error("User already exists");
+  }
+
+  /**
+   * CREATE USER
+   */
+  const user = await repo.create({
+
+    uuid: uuidv4(),
+
+    mobile: data.mobile,
+
+    name: data.name,
+
+    email: data.email,
+
+    gender: data.gender,
+
+    dob: data.dob,
+
+    birth_time: data.birth_time,
+
+    birth_place: data.birth_place,
+
+    status: "active",
+  });
+
+  /**
+   * TOKEN
+   */
+  const token = generateToken({
+    id: user.id,
+    mobile: user.mobile,
+    uuid: user.uuid,
+    status: user.status,
+  });
+
+  return {
+    success: true,
+    message: "Registration successful",
+    token,
+    user,
+  };
+};
 /**
  * =========================
  * UPDATE PROFILE

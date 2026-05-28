@@ -15,14 +15,47 @@ exports.sendOtp = async (req, res) => {
 };
 
 exports.verifyOtp = async (req, res) => {
+
   try {
+
     const result = await service.verifyOtp(
       req.body.mobile,
       req.body.otp
     );
-    res.json(result);
+
+    /**
+     * NEW USER
+     */
+    if (result.statusCode === 401) {
+
+      return res.status(401).json(result);
+    }
+
+    /**
+     * LOGIN SUCCESS
+     */
+    return res.json(result);
+
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+
+    return res.status(400).json({
+      success: false,
+      message: err.message,
+    });
+  }
+};
+
+exports.register = async (req, res) => {
+  try {
+   const result = await service.register(req.body);
+
+    res.json(result);
+
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message,
+    });
   }
 };
 

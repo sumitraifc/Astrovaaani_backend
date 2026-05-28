@@ -15,6 +15,7 @@ const upload = require("../../config/multer");
 router.post("/send-otp", controller.sendOtp);
 router.post("/verify-otp", controller.verifyOtp);
 
+router.post("/register", controller.register);
 // PROFILE
 // router.patch("/profileupdate", auth, controller.updateProfile);
 router.patch(
