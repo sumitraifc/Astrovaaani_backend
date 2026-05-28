@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
 
   <title>Advanced Realtime Chat Test</title>
@@ -40,6 +41,11 @@
 
     button:hover{
       opacity:.9;
+    }
+
+    button:disabled{
+      background:#94a3b8;
+      cursor:not-allowed;
     }
 
     #chat{
@@ -92,6 +98,23 @@
       border:1px solid #ddd;
     }
 
+    .status-box{
+      margin-top:10px;
+      font-weight:bold;
+    }
+
+    .online{
+      color:green;
+    }
+
+    .busy{
+      color:red;
+    }
+
+    .offline{
+      color:gray;
+    }
+
   </style>
 
 </head>
@@ -118,8 +141,11 @@
     value="2"
   />
 
-  <button onclick="createConversation()">
-    Create Conversation
+  <button
+    id="createBtn"
+    onclick="createConversation()"
+  >
+    Start Chat
   </button>
 
 </div>
@@ -142,6 +168,20 @@
   <button onclick="leaveRoom()">
     Leave Room
   </button>
+
+  <div
+    class="status-box"
+    id="astroStatus"
+  >
+    ⚫ Offline
+  </div>
+
+  <div
+    class="status-box"
+    id="walletStatus"
+  >
+    Wallet : ₹0
+  </div>
 
 </div>
 
@@ -167,7 +207,10 @@
     style="width:300px"
   />
 
-  <button onclick="sendMessage()">
+  <button
+    id="sendBtn"
+    onclick="sendMessage()"
+  >
     Send
   </button>
 
@@ -204,12 +247,13 @@
 <script>
 
 const socket = io(
-  "https://astorvani.codescarts.com/",
-  // "http://localhost:5000",
+  "http://localhost:5000",
   {
     transports:["websocket"]
   }
 );
+
+let typingTimeout = null;
 
 /**
  * ============================
@@ -225,10 +269,32 @@ socket.on("connect", ()=>{
 
 /**
  * ============================
+ * SOCKET DISCONNECT
+ * ============================
+ */
+socket.on("disconnect", ()=>{
+
+  addSystem(
+    "Socket Disconnected"
+  );
+});
+
+/**
+ * ============================
  * CREATE CONVERSATION
  * ============================
  */
 function createConversation(){
+
+  const button =
+    document.getElementById(
+      "createBtn"
+    );
+
+  button.disabled = true;
+
+  button.innerText =
+    "Starting...";
 
   const user_id = Number(
     document.getElementById(
@@ -253,6 +319,11 @@ function createConversation(){
 
       console.log(response);
 
+      button.disabled = false;
+
+      button.innerText =
+        "Start Chat";
+
       if(!response.success){
 
         return alert(
@@ -260,18 +331,17 @@ function createConversation(){
         );
       }
 
-      /**
-       * SET CONVERSATION ID
-       */
       document.getElementById(
         "conversationId"
       ).value =
         response.conversation
           .conversation_id;
 
-      /**
-       * SYSTEM MESSAGE
-       */
+      document.getElementById(
+        "walletStatus"
+      ).innerHTML =
+        `Wallet : ₹${response.wallet_balance}`;
+
       addSystem(
         `
         Conversation Created :
@@ -295,15 +365,8 @@ function createConversation(){
 
       addSystem(
         `
-        Charge Per Minute :
-        ₹${response.conversation.charge_per_min}
-        `
-      );
-
-      addSystem(
-        `
-        Wallet Balance :
-        ₹${response.wallet_balance}
+        Charge :
+        ₹${response.conversation.charge_per_min}/min
         `
       );
 
@@ -348,10 +411,7 @@ function joinRoom(){
   );
 
   addSystem(
-    `
-    Joined Room :
-    ${conversation_id}
-    `
+    `Joined Room : ${conversation_id}`
   );
 }
 
@@ -383,6 +443,11 @@ function leaveRoom(){
   addSystem(
     "Room Left"
   );
+
+  document.getElementById(
+    "astroStatus"
+  ).innerHTML =
+    "⚫ Offline";
 }
 
 /**
@@ -392,14 +457,21 @@ function leaveRoom(){
  */
 function sendMessage(){
 
-  const sender_type =
-    document.getElementById(
-      "senderType"
-    ).value;
-
   const conversation_id =
     document.getElementById(
       "conversationId"
+    ).value;
+
+  if(!conversation_id){
+
+    return alert(
+      "Create conversation first"
+    );
+  }
+
+  const sender_type =
+    document.getElementById(
+      "senderType"
     ).value;
 
   const sender_id =
@@ -441,6 +513,13 @@ function sendMessage(){
   document.getElementById(
     "msg"
   ).value = "";
+
+  socket.emit(
+    "stop_typing",
+    {
+      conversation_id
+    }
+  );
 }
 
 /**
@@ -517,7 +596,7 @@ function sendFile(){
 
 /**
  * ============================
- * TYPING
+ * TYPING EVENT
  * ============================
  */
 document
@@ -543,6 +622,22 @@ document
         sender_type
       }
     );
+
+    clearTimeout(
+      typingTimeout
+    );
+
+    typingTimeout =
+      setTimeout(()=>{
+
+        socket.emit(
+          "stop_typing",
+          {
+            conversation_id
+          }
+        );
+
+      },1000);
   }
 );
 
@@ -562,14 +657,16 @@ socket.on(
       ${data.sender_type}
       typing...
       `;
+  }
+);
 
-    setTimeout(()=>{
+socket.on(
+  "stop_typing",
+  ()=>{
 
-      document.getElementById(
-        "typing"
-      ).innerHTML = "";
-
-    },1500);
+    document.getElementById(
+      "typing"
+    ).innerHTML = "";
   }
 );
 
@@ -595,18 +692,12 @@ socket.on(
 
     let html = `
       <b>
-        ${
-          data.sender_name ||
-          data.sender_type
-        }
+        ${data.sender_type}
       </b>
 
       <br/><br/>
     `;
 
-    /**
-     * TEXT
-     */
     if(
       data.message_type === "text"
     ){
@@ -616,9 +707,6 @@ socket.on(
       `;
     }
 
-    /**
-     * IMAGE
-     */
     else if(
       data.message_type === "image"
     ){
@@ -630,9 +718,6 @@ socket.on(
       `;
     }
 
-    /**
-     * FILE
-     */
     else{
 
       html += `
@@ -674,16 +759,8 @@ socket.on(
       .getElementById("chat")
       .appendChild(li);
 
-    document
-      .getElementById("chat")
-      .scrollTop =
-      document
-        .getElementById("chat")
-        .scrollHeight;
+    scrollBottom();
 
-    /**
-     * AUTO SEEN
-     */
     socket.emit(
       "seen_messages",
       {
@@ -718,6 +795,14 @@ socket.on(
   "wallet_updated",
   (data)=>{
 
+    document.getElementById(
+      "walletStatus"
+    ).innerHTML =
+      `
+      Wallet : ₹
+      ${data.remaining_balance}
+      `;
+
     addSystem(
       `
       ₹${data.deducted}
@@ -747,6 +832,10 @@ socket.on(
       ₹${data.balance}
       `
     );
+
+    alert(
+      "Low wallet balance"
+    );
   }
 );
 
@@ -761,10 +850,55 @@ socket.on(
 
     addSystem(
       `
-      User Joined :
-      ${data.conversation_id}
+      ${data.sender_type}
+      joined room
       `
     );
+  }
+);
+
+/**
+ * ============================
+ * ASTROLOGER STATUS
+ * ============================
+ */
+socket.on(
+  "astrologer_status",
+  (data)=>{
+
+    const box =
+      document.getElementById(
+        "astroStatus"
+      );
+
+    if(data.status === "online"){
+
+      box.className =
+        "status-box online";
+
+      box.innerHTML =
+        "🟢 Online";
+    }
+
+    else if(
+      data.status === "busy"
+    ){
+
+      box.className =
+        "status-box busy";
+
+      box.innerHTML =
+        "🔴 Busy";
+    }
+
+    else{
+
+      box.className =
+        "status-box offline";
+
+      box.innerHTML =
+        "⚫ Offline";
+    }
   }
 );
 
@@ -783,6 +917,10 @@ socket.on(
 
       <br/><br/>
 
+      ${data.message || ""}
+
+      <br/><br/>
+
       Amount :
       ₹${data.amount || 0}
 
@@ -792,6 +930,20 @@ socket.on(
       ${data.duration || 0} min
       `
     );
+
+    alert(
+      data.message ||
+      "Chat ended"
+    );
+
+    document.getElementById(
+      "conversationId"
+    ).value = "";
+
+    document.getElementById(
+      "astroStatus"
+    ).innerHTML =
+      "🟢 Online";
   }
 );
 
@@ -814,6 +966,16 @@ function addSystem(message){
   document
     .getElementById("chat")
     .appendChild(li);
+
+  scrollBottom();
+}
+
+/**
+ * ============================
+ * AUTO SCROLL
+ * ============================
+ */
+function scrollBottom(){
 
   document
     .getElementById("chat")
