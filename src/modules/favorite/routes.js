@@ -8,7 +8,7 @@ const auth = require("../../middlewares/auth");
 /**
  * ADD FAVORITE
  */
-router.post(
+router.get(
   "/:astrologerId",
   auth,
   controller.addFavorite
