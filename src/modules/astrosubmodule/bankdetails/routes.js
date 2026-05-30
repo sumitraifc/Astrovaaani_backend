@@ -3,7 +3,7 @@ const router = express.Router();
 
 const controller = require("./controller");
 
-const auth = require("../../../middleware/auth");
+const auth = require("../../../middlewares/auth");
 
 // Get Bank Details
 router.get(
