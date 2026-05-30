@@ -241,13 +241,12 @@ exports.verifyOtp = async (mobile, otp) => {
   /**
    * FIND ASTROLOGER (ASTROLOGER TABLE)
    */
+
   if (role === "astrologer") {
     user = await astroRepo.findByMobile(mobile);
   }
 
-  /**
-   * NEW USER
-   */
+  
   if (!user) {
 
     await redis.del(`otp:${mobile}`);
@@ -258,13 +257,41 @@ exports.verifyOtp = async (mobile, otp) => {
       statusCode: 401,
 
       is_new_user: true,
-
+      nextStep: 1,
       message: "User not registered. Please complete registration",
 
       mobile,
     };
   }
 
+//   if (role === "astrologer") {
+
+//   if (!user.registration_completed) {
+
+//     return {
+//       success: true,
+//       is_new_user: false,
+
+//       astrologer_id: user.id,
+
+//       registration_incomplete: true,
+
+//       nextStep: user.registration_step,
+
+//       message: `Continue registration from step ${user.registration_step}`
+//     };
+//   }
+
+//   if (user.approval_status === "pending") {
+
+//     return {
+//       success: true,
+//       astrologer_id: user.id,
+//       approval_status: "pending",
+//       message: "Profile under review"
+//     };
+//   }
+// }
   /**
    * BLOCK CHECK
    */

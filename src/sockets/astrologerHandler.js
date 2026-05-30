@@ -1,45 +1,9 @@
 const db = require("../config/db");
 
-/* 🔹 GET ALL ASTROLOGERS */
+/* =========================
+   GET ALL ASTROLOGERS
+========================= */
 async function getAllAstrologers() {
-  const [astrologers] = await db.query(`
-    SELECT
-      id,
-      uuid,
-      name,
-      profile_image,
-      experience,
-      rating,
-      total_reviews,
-      languages,
-      expertise,
-      chat_charge,
-      audio_charge,
-      video_charge,
-      is_online,
-      status,
-      about,
-      created_at,
-      updated_at,
-      chat_status
-    FROM astrologers
-    WHERE status = 'active'
-    ORDER BY
-      CASE
-        WHEN is_online = 1 AND chat_status = 'busy' THEN 1
-        WHEN is_online = 1 THEN 2
-        WHEN chat_status = 'offline' THEN 3
-        ELSE 4
-      END,
-      rating DESC,
-      name ASC
-  `);
-
-  return astrologers;
-}
-
-/* 🔹 GET SINGLE ASTROLOGER */
-async function getSingleAstrologer(astrologerId) {
   const [rows] = await db.query(`
     SELECT
       id,
@@ -57,9 +21,70 @@ async function getSingleAstrologer(astrologerId) {
       is_online,
       status,
       about,
+      approval_status,
+      step1_status,
+      step2_status,
+      step3_status,
+      step4_status,
+      step5_status,
       created_at,
       updated_at,
-      chat_status
+      live_status
+    FROM astrologers
+    WHERE status = 'active'
+    ORDER BY
+      CASE
+        WHEN is_online = 1 AND live_status = 'busy' THEN 1
+        WHEN is_online = 1 THEN 2
+        WHEN live_status = 'offline' THEN 3
+        ELSE 4
+      END,
+      rating DESC,
+      name ASC
+  `);
+
+  return rows;
+}
+
+/* =========================
+   GET SINGLE ASTROLOGER
+========================= */
+async function getSingleAstrologer(astrologerId) {
+  const [rows] = await db.query(`
+    SELECT
+      id,
+      uuid,
+      name,
+      phone,
+      email,
+      profile_image,
+      experience,
+      rating,
+      total_reviews,
+      languages,
+      expertise,
+      chat_charge,
+      audio_charge,
+      video_charge,
+      is_online,
+      status,
+      about,
+      approval_status,
+      step1_status,
+      step2_status,
+      step3_status,
+      step4_status,
+      step5_status,
+      step1_remark,
+      step2_remark,
+      step3_remark,
+      step4_remark,
+      step5_remark,
+      registration_step,
+      registration_completed,
+      created_at,
+      updated_at,
+      live_status
     FROM astrologers
     WHERE id = ?
     LIMIT 1
@@ -68,229 +93,179 @@ async function getSingleAstrologer(astrologerId) {
   return rows[0] || null;
 }
 
+/* =========================
+   ONLINE STATUS UPDATE
+========================= */
 async function setAstrologerOnlineStatus(io, astrologerId, isOnline) {
+
   const statusValue = Number(isOnline);
-  if (![0, 1].includes(statusValue)) {
-    return null;
-  }
+  if (![0, 1].includes(statusValue)) return null;
 
   const [rows] = await db.query(
     `SELECT id FROM astrologers WHERE id = ? LIMIT 1`,
-    [Number(astrologerId)]
+    [astrologerId]
   );
 
-  if (!rows.length) {
-    return null;
-  }
+  if (!rows.length) return null;
 
   await db.query(
     `
-      UPDATE astrologers
-      SET is_online = ?,
-          chat_status = CASE
-            WHEN ? = 0 THEN 'offline'
-            WHEN chat_status = 'offline' THEN 'online'
-            ELSE chat_status
-          END
-      WHERE id = ?
+    UPDATE astrologers
+    SET is_online = ?,
+        live_status = CASE
+          WHEN ? = 0 THEN 'offline'
+          WHEN live_status = 'offline' THEN 'online'
+          ELSE live_status
+        END
+    WHERE id = ?
     `,
-    [statusValue, statusValue, Number(astrologerId)]
+    [statusValue, statusValue, astrologerId]
   );
 
-  const updatedAstrologer = await getSingleAstrologer(Number(astrologerId));
-  if (!updatedAstrologer) {
-    return null;
-  }
+  const updated = await getSingleAstrologer(astrologerId);
 
   io.emit("astrologer:single_updated", {
     success: true,
-    message: "Astrologer status updated",
-    data: updatedAstrologer
+    message: "Status updated",
+    data: updated
   });
 
-  return updatedAstrologer;
+  return updated;
 }
 
+/* =========================
+   CHAT STATUS UPDATE
+========================= */
 async function setAstrologerChatStatus(io, astrologerId, chatStatus) {
-  if (!['online', 'busy', 'offline'].includes(chatStatus)) {
-    return null;
-  }
+
+  if (!['online', 'busy', 'offline'].includes(chatStatus)) return null;
 
   const [rows] = await db.query(
     `SELECT id FROM astrologers WHERE id = ? LIMIT 1`,
-    [Number(astrologerId)]
+    [astrologerId]
   );
 
-  if (!rows.length) {
-    return null;
-  }
+  if (!rows.length) return null;
 
   await db.query(
     `
-      UPDATE astrologers
-      SET chat_status = ?
-      WHERE id = ?
+    UPDATE astrologers
+    SET live_status = ?
+    WHERE id = ?
     `,
-    [chatStatus, Number(astrologerId)]
+    [chatStatus, astrologerId]
   );
 
-  const updatedAstrologer = await getSingleAstrologer(Number(astrologerId));
-  if (!updatedAstrologer) {
-    return null;
-  }
+  const updated = await getSingleAstrologer(astrologerId);
 
   io.emit("astrologer:single_updated", {
     success: true,
-    message: "Astrologer chat status updated",
-    data: updatedAstrologer
+    message: "Chat status updated",
+    data: updated
   });
 
-  return updatedAstrologer;
+  return updated;
 }
 
+/* =========================
+   STEP STATUS UPDATE (ADMIN USE)
+   ========================= */
+async function updateStepStatus(io, astrologerId, step, status, remark = null) {
+
+  const allowedSteps = [1,2,3,4,5];
+  const allowedStatus = ['pending','approved','rejected'];
+
+  if (!allowedSteps.includes(step)) return null;
+  if (!allowedStatus.includes(status)) return null;
+
+  const stepField = `step${step}_status`;
+  const remarkField = `step${step}_remark`;
+
+  await db.query(
+    `
+    UPDATE astrologers
+    SET ${stepField} = ?,
+        ${remarkField} = ?
+    WHERE id = ?
+    `,
+    [status, remark, astrologerId]
+  );
+
+  const updated = await getSingleAstrologer(astrologerId);
+
+  io.emit("astrologer:single_updated", {
+    success: true,
+    message: `Step ${step} updated`,
+    data: updated
+  });
+
+  return updated;
+}
+
+/* =========================
+   SOCKET HANDLER
+========================= */
 function astrologerSocket(io, socket) {
 
-  /* =========================================
-     FIRST TIME FULL LIST
-  ========================================= */
-
+  /* GET LIST */
   socket.on("astrologer:get_list", async () => {
-
     try {
-
-      const astrologers = await getAllAstrologers();
-
-      if (!astrologers.length) {
-
-        return socket.emit("astrologer:list_updated", {
-          success: false,
-          message: "No astrologers found",
-          data: []
-        });
-      }
+      const data = await getAllAstrologers();
 
       socket.emit("astrologer:list_updated", {
         success: true,
-        message: "Astrologer list fetched successfully",
-        data: astrologers
+        data
       });
 
-    } catch (error) {
-
-      console.error("astrologer:get_list error:", error);
-
+    } catch (e) {
       socket.emit("astrologer:list_updated", {
         success: false,
-        message: "Something went wrong",
-        data: []
+        message: "Error"
       });
     }
   });
 
-  /* =========================================
-     UPDATE STATUS
-  ========================================= */
-
-  socket.on("astrologer:update_status", async ({ astrologer_id, is_online }) => {
-
-    try {
-
-      if (!astrologer_id) {
-
-        return socket.emit("astrologer:single_updated", {
-          success: false,
-          message: "Astrologer ID required"
-        });
-      }
-
-      if (![0, 1].includes(Number(is_online))) {
-
-        return socket.emit("astrologer:single_updated", {
-          success: false,
-          message: "Invalid online status"
-        });
-      }
-
-      const updatedAstrologer = await setAstrologerOnlineStatus(io, astrologer_id, is_online);
-
-      if (!updatedAstrologer) {
-
-        return socket.emit("astrologer:single_updated", {
-          success: false,
-          message: "Astrologer not found or cannot update status"
-        });
-      }
-
-      socket.emit("astrologer:single_updated", {
-        success: true,
-        message: "Astrologer updated successfully",
-        data: updatedAstrologer
-      });
-
-    } catch (error) {
-
-      console.error("astrologer:update_status error:", error);
-
-      socket.emit("astrologer:single_updated", {
-        success: false,
-        message: "Something went wrong"
-      });
-    }
+  /* ONLINE STATUS */
+  socket.on("astrologer:update_status", async (data) => {
+    await setAstrologerOnlineStatus(io, data.astrologer_id, data.is_online);
   });
 
-  /* =========================================
-     UPDATE RATING
-  ========================================= */
+  /* CHAT STATUS */
+  socket.on("astrologer:update_chat_status", async (data) => {
+    await setAstrologerChatStatus(io, data.astrologer_id, data.chat_status);
+  });
 
+  /* STEP STATUS UPDATE (ADMIN PANEL) */
+  socket.on("astrologer:update_step_status", async (data) => {
+    await updateStepStatus(
+      io,
+      data.astrologer_id,
+      data.step,
+      data.status,
+      data.remark
+    );
+  });
+
+  /* RATING */
   socket.on("astrologer:update_rating", async ({ astrologer_id, rating }) => {
 
-    try {
+    await db.query(
+      `UPDATE astrologers SET rating=? WHERE id=?`,
+      [rating, astrologer_id]
+    );
 
-      if (!astrologer_id) {
+    const updated = await getSingleAstrologer(astrologer_id);
 
-        return socket.emit("astrologer:single_updated", {
-          success: false,
-          message: "Astrologer ID required"
-        });
-      }
-
-      await db.query(
-        `UPDATE astrologers 
-         SET rating = ?
-         WHERE id = ?`,
-        [Number(rating), Number(astrologer_id)]
-      );
-
-      const updatedAstrologer = await getSingleAstrologer(astrologer_id);
-
-      if (!updatedAstrologer) {
-
-        return socket.emit("astrologer:single_updated", {
-          success: false,
-          message: "Astrologer not found"
-        });
-      }
-
-      io.emit("astrologer:single_updated", {
-        success: true,
-        message: "Rating updated successfully",
-        data: updatedAstrologer
-      });
-
-    } catch (error) {
-
-      console.error("astrologer:update_rating error:", error);
-
-      socket.emit("astrologer:single_updated", {
-        success: false,
-        message: "Something went wrong"
-      });
-    }
+    io.emit("astrologer:single_updated", {
+      success: true,
+      data: updated
+    });
   });
 }
 
 module.exports = {
   astrologerSocket,
   setAstrologerOnlineStatus,
-  setAstrologerChatStatus
+  setAstrologerChatStatus,
+  updateStepStatus
 };

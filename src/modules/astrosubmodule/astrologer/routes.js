@@ -49,6 +49,8 @@ router.post("/register-step-4",   upload.none(),
 // STEP 5
 router.post("/register-step-5",  upload.none(), controller.step5);
 
+router.get("/registration-status/:id", controller.registrationStatus);
+
 router.get("/resume/:id", controller.resume);
 
 module.exports = router;

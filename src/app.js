@@ -93,6 +93,8 @@ app.use("/api/call", require("./modules/call/routes"));
 
 app.use("/api/astrologer", require("./modules/astrosubmodule/astrologer/routes"));
 
+// app.use("/api/astrologer/bankdetails", require("./modules/astrosubmodule/bankdetails/routes"));
+
 /**
  * =========================
  * HEALTH CHECK
@@ -116,4 +118,4 @@ app.use((err, req, res, next) => {
   });
 });
 
-module.exports = app;
+module.exports = app; 

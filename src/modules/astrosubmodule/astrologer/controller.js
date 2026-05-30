@@ -150,22 +150,34 @@ exports.step5 = async (req, res) => {
   }
 };
 
+exports.registrationStatus = async (req, res) => {
+
+  const astro = await service.getStatus(req.params.id);
+
+  res.json({
+    success: true,
+    data: astro
+  });
+
+};
+
 exports.resume = async (req, res) => {
-  try {
-    const { id } = req.params;
 
-    res.json({
-      status: true,
-      astrologer_id: id,
-      message: "Resume data fetched"
-    });
+  const astro =
+    await service.getStatus(req.params.id);
 
-  } catch (err) {
+  res.json({
+    success: true,
+    registration_step:
+      astro.registration_step,
 
-    res.status(500).json({
-      status: false,
-      message: err.message
-    });
+    registration_completed:
+      astro.registration_completed,
 
-  }
+    approval_status:
+      astro.approval_status,
+
+    data: astro
+  });
+
 };

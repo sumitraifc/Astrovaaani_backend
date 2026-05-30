@@ -1,133 +1,194 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Astrologer Socket Test</title>
-  <style>
-    body { font-family: Arial, sans-serif; background: #f4f6f8; color: #1f2937; padding: 24px; }
-    h1, h2 { margin-bottom: 12px; }
-    .card { background: #fff; border: 1px solid #d1d5db; border-radius: 10px; padding: 18px; margin-bottom: 18px; }
-    label { display: block; margin: 10px 0 4px; font-weight: 600; }
-    input, select, button { width: 100%; max-width: 380px; padding: 10px 12px; margin-bottom: 10px; border-radius: 8px; border: 1px solid #cbd5e1; }
-    button { background: #2563eb; color: white; border: none; cursor: pointer; }
-    button:hover { opacity: 0.93; }
-    .status { font-weight: 700; margin-bottom: 8px; }
-    .list-item { padding: 10px; margin-bottom: 8px; border-radius: 8px; background: #eef2ff; }
-    .small { font-size: 0.94rem; color: #475569; }
-    pre { background: #111827; color: #f8fafc; padding: 12px; border-radius: 8px; overflow-x: auto; }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Astrologer Socket Test</title>
+
+<style>
+body {
+  font-family: Arial;
+  background: #f5f7fb;
+  padding: 20px;
+}
+
+.card {
+  background: #fff;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+input, select, button {
+  padding: 10px;
+  margin-top: 5px;
+  margin-bottom: 10px;
+  width: 300px;
+}
+
+button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  cursor: pointer;
+}
+
+pre {
+  background: #111827;
+  color: #fff;
+  padding: 10px;
+  overflow: auto;
+}
+</style>
+
 </head>
+
 <body>
-  <h1>Astrologer Socket Test</h1>
-  <div class="card">
-    <div class="status" id="connectionStatus">Connecting...</div>
-    <div class="small">Default socket endpoint: <strong>http://localhost:5000</strong></div>
-  </div>
 
-  <div class="card">
-    <h2>1. Fetch Astrologer List</h2>
-    <button onclick="requestAstrologerList()">Get Astrologer List</button>
-    <div id="listResult"></div>
-  </div>
+<h2>🔥 Astrologer Socket Debug Panel</h2>
 
-  <div class="card">
-    <h2>2. Update Astrologer Online Status</h2>
-    <label for="statusAstrologerId">Astrologer ID</label>
-    <input id="statusAstrologerId" type="number" placeholder="Enter astrologer ID" value="1" />
-    <label for="statusValue">Online Status</label>
-    <select id="statusValue">
-      <option value="1">Online</option>
-      <option value="0">Offline</option>
-    </select>
-    <button onclick="updateAstrologerStatus()">Update Status</button>
-  </div>
+<div class="card">
+  <h3>Connection</h3>
+  <div id="status">Connecting...</div>
+</div>
 
-  <div class="card">
-    <h2>3. Update Astrologer Rating</h2>
-    <label for="ratingAstrologerId">Astrologer ID</label>
-    <input id="ratingAstrologerId" type="number" placeholder="Enter astrologer ID" value="1" />
-    <label for="ratingValue">Rating</label>
-    <input id="ratingValue" type="number" min="0" max="5" step="0.1" placeholder="Enter rating" value="4.5" />
-    <button onclick="updateAstrologerRating()">Update Rating</button>
-  </div>
+<div class="card">
+  <h3>Astrologer List</h3>
+  <button onclick="getList()">GET LIST</button>
+  <div id="list"></div>
+</div>
 
-  <div class="card">
-    <h2>Socket Events</h2>
-    <div id="eventsLog"></div>
-  </div>
+<div class="card">
+  <h3>Update Online Status</h3>
+  <input id="aid1" placeholder="Astrologer ID"/>
+  <select id="online">
+    <option value="1">Online</option>
+    <option value="0">Offline</option>
+  </select>
+  <button onclick="updateStatus()">Update</button>
+</div>
 
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script>
-    const socket = io("http://localhost:5000", { transports: ["websocket"] });
+<div class="card">
+  <h3>Update Rating</h3>
+  <input id="aid2" placeholder="Astrologer ID"/>
+  <input id="rating" placeholder="Rating"/>
+  <button onclick="updateRating()">Update Rating</button>
+</div>
 
-    const connectionStatus = document.getElementById("connectionStatus");
-    const listResult = document.getElementById("listResult");
-    const eventsLog = document.getElementById("eventsLog");
+<div class="card">
+  <h3>🔥 STEP APPROVAL TEST (NEW)</h3>
 
-    function logEvent(title, payload) {
-      const container = document.createElement("div");
-      const heading = document.createElement("strong");
-      heading.innerText = title;
-      const pre = document.createElement("pre");
-      pre.innerText = JSON.stringify(payload, null, 2);
-      container.appendChild(heading);
-      container.appendChild(pre);
-      eventsLog.prepend(container);
-    }
+  <input id="stepAstroId" placeholder="Astrologer ID"/>
 
-    socket.on("connect", () => {
-      connectionStatus.innerText = `Connected: ${socket.id}`;
-      connectionStatus.style.color = "green";
-      logEvent("connect", { socketId: socket.id });
-    });
+  <select id="step">
+    <option value="1">Step 1</option>
+    <option value="2">Step 2</option>
+    <option value="3">Step 3</option>
+    <option value="4">Step 4</option>
+    <option value="5">Step 5</option>
+  </select>
 
-    socket.on("disconnect", () => {
-      connectionStatus.innerText = "Disconnected";
-      connectionStatus.style.color = "red";
-      logEvent("disconnect", { message: "Socket disconnected" });
-    });
+  <select id="stepStatus">
+    <option value="approved">Approved</option>
+    <option value="rejected">Rejected</option>
+    <option value="pending">Pending</option>
+  </select>
 
-    socket.on("astrologer:list_updated", (payload) => {
-      logEvent("astrologer:list_updated", payload);
-      if (payload.data && Array.isArray(payload.data)) {
-        listResult.innerHTML = payload.data.map(a => `
-          <div class="list-item">
-            <strong>${a.name} (ID: ${a.id})</strong><br>
-            Status: ${a.is_online ? 'Online' : 'Offline'} | Chat: ${a.chat_status}<br>
-            Rating: ${a.rating} | Expertise: ${a.expertise || 'N/A'}
-          </div>
-        `).join("");
-      } else {
-        listResult.innerHTML = `<div class="small">${payload.message || 'No data returned.'}</div>`;
-      }
-    });
+  <input id="remark" placeholder="Remark (optional)"/>
 
-    socket.on("astrologer:single_updated", (payload) => {
-      logEvent("astrologer:single_updated", payload);
-    });
+  <button onclick="updateStep()">Update Step Status</button>
+</div>
 
-    socket.on("connect_error", (error) => {
-      connectionStatus.innerText = "Connection Error";
-      connectionStatus.style.color = "orange";
-      logEvent("connect_error", { error: error.message });
-    });
+<div class="card">
+  <h3>📡 Event Log</h3>
+  <div id="log"></div>
+</div>
 
-    function requestAstrologerList() {
-      socket.emit("astrologer:get_list");
-    }
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
-    function updateAstrologerStatus() {
-      const astrologerId = Number(document.getElementById("statusAstrologerId").value);
-      const isOnline = Number(document.getElementById("statusValue").value);
-      socket.emit("astrologer:update_status", { astrologer_id: astrologerId, is_online: isOnline });
-    }
+<script>
+const socket = io("http://localhost:5000");
 
-    function updateAstrologerRating() {
-      const astrologerId = Number(document.getElementById("ratingAstrologerId").value);
-      const rating = Number(document.getElementById("ratingValue").value);
-      socket.emit("astrologer:update_rating", { astrologer_id: astrologerId, rating });
-    }
-  </script>
+const log = (title, data) => {
+  const div = document.createElement("div");
+  div.innerHTML = `
+    <h4>${title}</h4>
+    <pre>${JSON.stringify(data, null, 2)}</pre>
+  `;
+  document.getElementById("log").prepend(div);
+};
+
+socket.on("connect", () => {
+  document.getElementById("status").innerText = "Connected: " + socket.id;
+  log("CONNECTED", { id: socket.id });
+});
+
+/* LIST */
+socket.on("astrologer:list_updated", (data) => {
+  log("LIST RESPONSE", data);
+
+  if (data.data) {
+    document.getElementById("list").innerHTML =
+      data.data.map(a => `
+        <div>
+          <b>${a.name}</b> (ID: ${a.id})<br>
+          Step1: ${a.step1_status} | Step2: ${a.step2_status}<br>
+          Step3: ${a.step3_status} | Step4: ${a.step4_status}<br>
+          Step5: ${a.step5_status}<br>
+          Approval: ${a.approval_status}
+          <hr>
+        </div>
+      `).join("");
+  }
+});
+
+/* SINGLE UPDATE */
+socket.on("astrologer:single_updated", (data) => {
+  log("SINGLE UPDATE", data);
+});
+
+/* LIST REQUEST */
+function getList() {
+  socket.emit("astrologer:get_list");
+  log("EMIT", { event: "astrologer:get_list" });
+}
+
+/* ONLINE */
+function updateStatus() {
+  socket.emit("astrologer:update_status", {
+    astrologer_id: Number(document.getElementById("aid1").value),
+    is_online: Number(document.getElementById("online").value)
+  });
+
+  log("EMIT", { event: "update_status" });
+}
+
+/* RATING */
+function updateRating() {
+  socket.emit("astrologer:update_rating", {
+    astrologer_id: Number(document.getElementById("aid2").value),
+    rating: Number(document.getElementById("rating").value)
+  });
+
+  log("EMIT", { event: "update_rating" });
+}
+
+/* STEP UPDATE */
+function updateStep() {
+  socket.emit("astrologer:update_step_status", {
+    astrologer_id: Number(document.getElementById("stepAstroId").value),
+    step: Number(document.getElementById("step").value),
+    status: document.getElementById("stepStatus").value,
+    remark: document.getElementById("remark").value
+  });
+
+  log("EMIT", {
+    event: "astrologer:update_step_status"
+  });
+}
+
+</script>
+
 </body>
 </html>
