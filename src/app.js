@@ -90,6 +90,9 @@ app.use("/api/expertise", require("./modules/expertise/routes"));
 
 app.use("/api/call", require("./modules/call/routes"));
 
+
+app.use("/api/astrologer", require("./modules/astrosubmodule/astrologer/routes"));
+
 /**
  * =========================
  * HEALTH CHECK

@@ -5,15 +5,30 @@ const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
 
+// exports.sendOtp = async (req, res) => {
+//   try {
+//     const result = await service.sendOtp(req.body.mobile);
+//     res.json(result);
+//   } catch (err) {
+//     res.status(400).json({ success: false, message: err.message });
+//   }
+// };
+
 exports.sendOtp = async (req, res) => {
   try {
-    const result = await service.sendOtp(req.body.mobile);
+    const { mobile, role } = req.body;
+
+    const result = await service.sendOtp(mobile, role);
+
     res.json(result);
+
   } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
   }
 };
-
 exports.verifyOtp = async (req, res) => {
 
   try {
