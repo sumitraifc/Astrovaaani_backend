@@ -24,8 +24,10 @@ exports.addReview = async (req, res) => {
 exports.getReviews = async (req, res) => {
   try {
 
+    const astrologerId = req.user.id; // ✅ FIX
+
     const result = await service.getReviews(
-      req.params.astrologerId,
+      astrologerId,
       req.query
     );
 

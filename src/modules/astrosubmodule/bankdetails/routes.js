@@ -7,7 +7,7 @@ const auth = require("../../../middlewares/auth");
 
 // Get Bank Details
 router.get(
-  "/:astrologer_id",
+  "/",
   auth,
   controller.getDetails
 );

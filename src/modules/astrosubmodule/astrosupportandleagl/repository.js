@@ -15,16 +15,38 @@ exports.getContent = async (astrologerId) => {
     ORDER BY id ASC
   `);
 
-  // group by type (clean response)
   const result = {};
 
   rows.forEach(item => {
-    result[item.type] = {
-      meta_key: item.meta_key,
-      title: item.title,
-      content: item.content,
-      image: item.image
-    };
+
+    // create type bucket
+    if (!result[item.type]) {
+      result[item.type] = {};
+    }
+
+    // 🔥 ONLY SUPPORT FIX
+    if (item.type === "support") {
+
+      if (!item.meta_key) return; // skip null support keys
+
+      result[item.type][item.meta_key] = {
+        title: item.title,
+        content: item.content,
+        image: item.image
+      };
+
+    } else {
+
+      // other types keep same logic
+      const key = item.meta_key || "main";
+
+      result[item.type][key] = {
+        title: item.title,
+        content: item.content,
+        image: item.image
+      };
+    }
+
   });
 
   return result;

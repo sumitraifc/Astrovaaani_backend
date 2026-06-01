@@ -1,6 +1,6 @@
 
 const repo = require("./repository");
-
+const { v4: uuidv4 } = require("uuid");
 // exports.saveStep = async (step, id, payload) => {
 
 //   let astro = null;
@@ -87,7 +87,7 @@ exports.saveStep = async (step, id, payload) => {
   if (step === 1) {
 
     const newId = await repo.create({
-
+          uuid: uuidv4(),
       phone: payload.phone,
       name: payload.name,
       gender: payload.gender,
