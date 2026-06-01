@@ -129,5 +129,15 @@ app.use((err, req, res, next) => {
     message: err.message || "Internal Server Error",
   });
 });
-
+/**
+ * =========================
+ * 404 HANDLER (ADD THIS)
+ * =========================
+ */
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: "Route not found"
+  });
+});
 module.exports = app; 

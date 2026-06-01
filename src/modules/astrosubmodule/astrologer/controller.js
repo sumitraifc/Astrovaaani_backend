@@ -150,15 +150,36 @@ exports.step5 = async (req, res) => {
   }
 };
 
-exports.registrationStatus = async (req, res) => {
+exports.registrationStatus = async (req, res, next) => {
 
-  const astro = await service.getStatus(req.params.id);
+  try {
 
-  res.json({
-    success: true,
-    data: astro
-  });
+    const id = req.params.id;
 
+    if (!id) {
+      return next({
+        status: 400,
+        message: "Astrologer id is required"
+      });
+    }
+
+    const astro = await service.getStatus(id);
+
+    if (!astro) {
+      return next({
+        status: 404,
+        message: "Astrologer not found"
+      });
+    }
+
+    res.json({
+      success: true,
+      data: astro
+    });
+
+  } catch (err) {
+    next(err);
+  }
 };
 
 exports.resume = async (req, res) => {
