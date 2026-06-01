@@ -4,7 +4,7 @@ exports.getDetails = async (id) => {
   return await repo.getByAstrologerId(id);
 };
 
-const repo = require("./repository");
+
 
 exports.updateDetails = async (id, payload) => {
   if (!id) {

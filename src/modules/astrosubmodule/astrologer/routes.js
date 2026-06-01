@@ -5,6 +5,7 @@ const controller = require("./controller");
 
 const upload = require("../../../config/multer");
 
+const verifyToken = require("../../../middlewares/auth");
 // STEP 1
 router.post(
   "/register-step-1",
@@ -52,5 +53,10 @@ router.post("/register-step-5",  upload.none(), controller.step5);
 router.get("/registration-status/:id", controller.registrationStatus);
 
 router.get("/resume/:id", controller.resume);
+router.get("/profile", verifyToken, controller.getProfile);
+// add/update documents
+router.post("/upload", verifyToken, controller.uploadDocument);
 
+// verification timeline
+router.get("/timeline", verifyToken, controller.getTimeline);
 module.exports = router;

@@ -80,3 +80,15 @@ exports.saveStep = async (step, id, payload) => {
 exports.getStatus = async (id) => {
   return await repo.findById(id);
 };
+
+exports.getProfile = async (astrologerId) => {
+  return await repo.getProfile(astrologerId);
+};
+
+exports.uploadDocument = async (astrologerId, data) => {
+  return await repo.uploadDocument(astrologerId, data);
+};
+
+exports.getTimeline = async (astrologerId) => {
+  return await repo.getTimeline(astrologerId);
+};

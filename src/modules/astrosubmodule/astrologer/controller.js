@@ -181,3 +181,69 @@ exports.resume = async (req, res) => {
   });
 
 };
+
+exports.getProfile = async (req, res) => {
+  try {
+
+    const astrologerId = req.user.id;
+
+    const result = await service.getProfile(astrologerId);
+
+    res.json({
+      success: true,
+      data: result
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+
+  }
+};
+
+exports.uploadDocument = async (req, res) => {
+  try {
+
+    const astrologerId = req.user.id;
+
+    const result = await service.uploadDocument(
+      astrologerId,
+      req.body
+    );
+
+    res.json({
+      success: true,
+      message: "Document saved successfully",
+      data: result
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+exports.getTimeline = async (req, res) => {
+  try {
+
+    const astrologerId = req.user.id;
+
+    const result = await service.getTimeline(astrologerId);
+
+    res.json({
+      success: true,
+      data: result
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};

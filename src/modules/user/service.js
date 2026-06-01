@@ -112,6 +112,7 @@ exports.sendOtp = async (mobile, role) => {
     return {
       success: true,
       message: "OTP sent (expires in 5 min)",
+      time: 300,
     };
 
   } catch (err) {

@@ -208,8 +208,9 @@ async function updateStepStatus(io, astrologerId, step, status, remark = null) {
 function astrologerSocket(io, socket) {
 
   /* GET LIST */
-  socket.on("astrologer:get_list", async () => {
+  socket.on("astrologer:get_list", async (payload, ack) => {
     try {
+
       const data = await getAllAstrologers();
 
       socket.emit("astrologer:list_updated", {
@@ -217,50 +218,135 @@ function astrologerSocket(io, socket) {
         data
       });
 
-    } catch (e) {
-      socket.emit("astrologer:list_updated", {
-        success: false,
-        message: "Error"
+      ack?.({
+        success: true,
+        data
       });
+
+    } catch (e) {
+
+      const error = {
+        success: false,
+        message: e.message || "Error"
+      };
+
+      socket.emit("astrologer:list_updated", error);
+
+      ack?.(error);
     }
   });
 
   /* ONLINE STATUS */
-  socket.on("astrologer:update_status", async (data) => {
-    await setAstrologerOnlineStatus(io, data.astrologer_id, data.is_online);
+  socket.on("astrologer:update_status", async (data, ack) => {
+    try {
+
+      const updated = await setAstrologerOnlineStatus(
+        io,
+        data.astrologer_id,
+        data.is_online
+      );
+
+      ack?.({
+        success: true,
+        message: "Status updated",
+        data: updated
+      });
+
+    } catch (e) {
+
+      ack?.({
+        success: false,
+        message: e.message
+      });
+    }
   });
 
   /* CHAT STATUS */
-  socket.on("astrologer:update_chat_status", async (data) => {
-    await setAstrologerChatStatus(io, data.astrologer_id, data.chat_status);
+  socket.on("astrologer:update_chat_status", async (data, ack) => {
+    try {
+
+      const updated = await setAstrologerChatStatus(
+        io,
+        data.astrologer_id,
+        data.chat_status
+      );
+
+      ack?.({
+        success: true,
+        message: "Chat status updated",
+        data: updated
+      });
+
+    } catch (e) {
+
+      ack?.({
+        success: false,
+        message: e.message
+      });
+    }
   });
 
-  /* STEP STATUS UPDATE (ADMIN PANEL) */
-  socket.on("astrologer:update_step_status", async (data) => {
-    await updateStepStatus(
-      io,
-      data.astrologer_id,
-      data.step,
-      data.status,
-      data.remark
-    );
+  /* STEP STATUS UPDATE */
+  socket.on("astrologer:update_step_status", async (data, ack) => {
+    try {
+
+      const updated = await updateStepStatus(
+        io,
+        data.astrologer_id,
+        data.step,
+        data.status,
+        data.remark
+      );
+
+      ack?.({
+        success: true,
+        message: `Step ${data.step} updated`,
+        data: updated
+      });
+
+    } catch (e) {
+
+      ack?.({
+        success: false,
+        message: e.message
+      });
+    }
   });
 
   /* RATING */
-  socket.on("astrologer:update_rating", async ({ astrologer_id, rating }) => {
+  socket.on(
+    "astrologer:update_rating",
+    async ({ astrologer_id, rating }, ack) => {
 
-    await db.query(
-      `UPDATE astrologers SET rating=? WHERE id=?`,
-      [rating, astrologer_id]
-    );
+      try {
 
-    const updated = await getSingleAstrologer(astrologer_id);
+        await db.query(
+          `UPDATE astrologers SET rating=? WHERE id=?`,
+          [rating, astrologer_id]
+        );
 
-    io.emit("astrologer:single_updated", {
-      success: true,
-      data: updated
-    });
-  });
+        const updated = await getSingleAstrologer(astrologer_id);
+
+        io.emit("astrologer:single_updated", {
+          success: true,
+          data: updated
+        });
+
+        ack?.({
+          success: true,
+          message: "Rating updated",
+          data: updated
+        });
+
+      } catch (e) {
+
+        ack?.({
+          success: false,
+          message: e.message
+        });
+      }
+    }
+  );
 }
 
 module.exports = {

@@ -95,6 +95,18 @@ app.use("/api/astrologer", require("./modules/astrosubmodule/astrologer/routes")
 
 app.use("/api/astrologer/bankdetails", require("./modules/astrosubmodule/bankdetails/routes"));
 
+app.use("/api/astrologer-earning/", require("./modules/astrosubmodule/astrolagerearning/routes"));
+
+app.use("/api/booking/", require("./modules/astrosubmodule/astrologerbookinghistory/routes"));
+
+app.use("/api/reviews/", require("./modules/astrosubmodule/reviews/routes"));
+
+app.use("/api/astrologer/service/", require("./modules/astrosubmodule/astrologerservice/routes"));
+
+app.use("/api/astrologer/home/", require("./modules/astrosubmodule/astrologerhome/routes"));
+
+app.use("/api/astrologer/support-legal", require("./modules/astrosubmodule/astrosupportandleagl/routes"));
+
 /**
  * =========================
  * HEALTH CHECK
