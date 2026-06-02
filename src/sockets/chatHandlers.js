@@ -248,7 +248,8 @@ if (fcmToken) {
         success: true,
         conversation_id: conversation.conversation_id,
         wallet_balance: walletBalance,
-        conversation
+        conversation,
+        socket_id: socket.id 
       });
     } catch (err) {
       console.log("Conversation Error:", err.message);

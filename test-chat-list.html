@@ -1,139 +1,108 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Astrologer Chat List Test</title>
-
-    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-
-    <style>
-        body{
-            font-family: Arial;
-            padding:20px;
-        }
-
-        .chat{
-            border:1px solid #ddd;
-            padding:10px;
-            margin-bottom:10px;
-            border-radius:8px;
-        }
-
-        .unread{
-            color:red;
-            font-weight:bold;
-        }
-
-        img{
-            width:50px;
-            height:50px;
-            border-radius:50%;
-            object-fit:cover;
-        }
-    </style>
+  <title>Socket Chat Test</title>
+  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 </head>
+
 <body>
+  <h2>Socket Chat Tester</h2>
 
-<h2>Astrologer Chat List</h2>
+  <hr>
 
-<button onclick="loadChats()">
-    Load Chat List
-</button>
+  <h3>Astrologer Chat List</h3>
 
-<hr>
+  <input id="astroId" placeholder="Astrologer ID" />
+  <button onclick="getChatList()">Get Chat List</button>
 
-<div id="chatList"></div>
+  <pre id="list"></pre>
 
-<script>
+  <hr>
 
-const socket = io("http://localhost:5000");
+  <h3>Join Chat Room</h3>
 
-socket.on("connect", () => {
-    console.log("Connected:", socket.id);
-});
+  <input id="conversationId" placeholder="Conversation ID" />
+  <button onclick="joinRoom()">Join Room</button>
 
-socket.on("disconnect", () => {
-    console.log("Disconnected");
-});
+  <hr>
 
-function loadChats(){
+  <h3>Send Message</h3>
 
-    socket.emit(
+  <input id="msg" placeholder="Message" />
+  <button onclick="sendMsg()">Send</button>
+
+  <hr>
+
+  <h3>Logs</h3>
+  <pre id="log"></pre>
+
+  <script>
+    const socket = io("http://localhost:5000"); // change port if needed
+
+    function log(msg) {
+      document.getElementById("log").innerText += msg + "\n";
+    }
+
+    socket.on("connect", () => {
+      log("Connected Socket ID: " + socket.id);
+    });
+
+    socket.on("receive_message", (data) => {
+      log("New Message: " + JSON.stringify(data));
+    });
+
+    socket.on("wallet_updated", (data) => {
+      log("Wallet Update: " + JSON.stringify(data));
+    });
+
+    socket.on("chat_ended", (data) => {
+      log("Chat Ended: " + JSON.stringify(data));
+    });
+
+    function getChatList() {
+      const astrologer_id = document.getElementById("astroId").value;
+
+      socket.emit(
         "astrologer_chat_list",
-        {
-            astrologer_id: 12
-        },
-        (response) => {
+        { astrologer_id },
+        (res) => {
+          document.getElementById("list").innerText =
+            JSON.stringify(res, null, 2);
 
-            console.log(response);
-
-            const container =
-                document.getElementById("chatList");
-
-            container.innerHTML = "";
-
-            if(!response.success){
-                container.innerHTML =
-                    "<h3>"+response.message+"</h3>";
-                return;
-            }
-
-            response.data.forEach(chat => {
-
-                const div =
-                    document.createElement("div");
-
-                div.className = "chat";
-
-                div.innerHTML = `
-
-                    <img
-                        src="${chat.profile_image || 'https://via.placeholder.com/50'}"
-                    />
-
-                    <h3>
-                        ${chat.user_name}
-                    </h3>
-
-                    <p>
-                        <b>Conversation:</b>
-                        ${chat.conversation_id}
-                    </p>
-
-                    <p>
-                        <b>Last Message:</b>
-                        ${chat.last_message || ''}
-                    </p>
-
-                    <p>
-                        <b>Message Time:</b>
-                        ${chat.message_time || ''}
-                    </p>
-
-                    <p>
-                        <b>User Status:</b>
-                        ${
-                            Number(chat.is_user_online) === 1
-                            ? '🟢 Online'
-                            : '⚫ Offline'
-                        }
-                    </p>
-
-                    <p class="unread">
-                        Unread:
-                        ${chat.unread_count}
-                    </p>
-
-                `;
-
-                container.appendChild(div);
-
-            });
-
+          log("Chat List Received");
         }
-    );
-}
+      );
+    }
 
-</script>
+    function joinRoom() {
+      const conversation_id =
+        document.getElementById("conversationId").value;
 
+      socket.emit("join_room", {
+        conversation_id,
+        sender_type: "astrologer"
+      });
+
+      log("Joined Room: " + conversation_id);
+    }
+
+    function sendMsg() {
+      const conversation_id =
+        document.getElementById("conversationId").value;
+
+      const message =
+        document.getElementById("msg").value;
+
+      socket.emit("send_message", {
+        conversation_id,
+        sender_type: "astrologer",
+        sender_id: 1,
+        message,
+        message_type: "text"
+      });
+
+      log("Message Sent: " + message);
+    }
+  </script>
 </body>
 </html>

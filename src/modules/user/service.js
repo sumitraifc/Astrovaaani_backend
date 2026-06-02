@@ -426,7 +426,7 @@ exports.verifyOtp = async (mobile, otp, fcm_token = null) => {
   if (user.approval_status === "rejected") {
     return {
       // success: false,
-      // statusCode: 403,
+      statusCode: 403,
       message: "Your profile is rejected. Please register with another number."
     };
   }
