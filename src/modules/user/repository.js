@@ -40,6 +40,19 @@ exports.create = async (data) => {
   return { id: result.insertId, ...data };
 };
 
+exports.update = async (id, data) => {
+  const keys = Object.keys(data);
+  const values = Object.values(data);
+
+  const setQuery = keys.map(k => `${k} = ?`).join(", ");
+
+  const sql = `UPDATE users SET ${setQuery} WHERE id = ?`;
+
+  await db.query(sql, [...values, id]);
+
+  return true;
+};
+
 /**
  * FIND BY MOBILE
  */
