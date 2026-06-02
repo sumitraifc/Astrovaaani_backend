@@ -1,108 +1,260 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Socket Chat Test</title>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+
+<meta charset="utf-8">
+<title>Astrologer Chat List Test</title>
+
+<style>
+
+body{
+    font-family:Arial;
+    background:#f3f4f6;
+    padding:20px;
+}
+
+button{
+    padding:10px 20px;
+    border:none;
+    background:#2563eb;
+    color:#fff;
+    border-radius:6px;
+    cursor:pointer;
+}
+
+.chat-item{
+    background:#fff;
+    border-radius:10px;
+    padding:12px;
+    margin-bottom:10px;
+    display:flex;
+    gap:12px;
+    align-items:center;
+    border:1px solid #ddd;
+}
+
+.chat-item img{
+    width:60px;
+    height:60px;
+    border-radius:50%;
+    object-fit:cover;
+}
+
+.chat-content{
+    flex:1;
+}
+
+.name{
+    font-size:18px;
+    font-weight:bold;
+}
+
+.last-message{
+    color:#666;
+    margin-top:4px;
+}
+
+.time{
+    font-size:12px;
+    color:#999;
+}
+
+.unread{
+    background:red;
+    color:white;
+    width:25px;
+    height:25px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+}
+
+.online{ color:green; }
+.offline{ color:gray; }
+
+#logs{
+    background:black;
+    color:#00ff00;
+    padding:10px;
+    margin-top:20px;
+    height:250px;
+    overflow:auto;
+    font-size:12px;
+}
+
+</style>
+
 </head>
 
 <body>
-  <h2>Socket Chat Tester</h2>
 
-  <hr>
+<h2>Astrologer Chat List</h2>
 
-  <h3>Astrologer Chat List</h3>
+<label>Astrologer ID :</label>
 
-  <input id="astroId" placeholder="Astrologer ID" />
-  <button onclick="getChatList()">Get Chat List</button>
+<input id="astrologerId" value="12"/>
 
-  <pre id="list"></pre>
+<button onclick="loadChats()">Load Chats</button>
 
-  <hr>
+<hr>
 
-  <h3>Join Chat Room</h3>
+<div id="chatList"></div>
 
-  <input id="conversationId" placeholder="Conversation ID" />
-  <button onclick="joinRoom()">Join Room</button>
+<h3>Socket Logs</h3>
+<div id="logs"></div>
 
-  <hr>
+<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 
-  <h3>Send Message</h3>
+<script>
 
-  <input id="msg" placeholder="Message" />
-  <button onclick="sendMsg()">Send</button>
+function log(msg){
+    console.log(msg);
+    document.getElementById("logs").innerHTML += msg + "<br>";
+}
 
-  <hr>
+/**
+ * SOCKET CONNECT
+ */
+const socket = io("http://localhost:5000", {
+    transports: ["websocket"]
+});
 
-  <h3>Logs</h3>
-  <pre id="log"></pre>
+socket.on("connect", () => {
+    log("✅ SOCKET CONNECTED");
+    log("Socket ID : " + socket.id);
+});
 
-  <script>
-    const socket = io("http://localhost:5000"); // change port if needed
+socket.on("disconnect", (reason) => {
+    log("❌ DISCONNECTED : " + reason);
+});
 
-    function log(msg) {
-      document.getElementById("log").innerText += msg + "\n";
-    }
+socket.on("connect_error", (err) => {
+    log("❌ CONNECT ERROR : " + err.message);
+});
 
-    socket.on("connect", () => {
-      log("Connected Socket ID: " + socket.id);
+/**
+ * EXTRA DEBUG EVENTS
+ */
+socket.on("receive_message", (data) => {
+    log("💬 NEW MESSAGE: " + JSON.stringify(data));
+});
+
+socket.on("wallet_updated", (data) => {
+    log("💰 WALLET UPDATE: " + JSON.stringify(data));
+});
+
+socket.on("chat_ended", (data) => {
+    log("🚫 CHAT ENDED: " + JSON.stringify(data));
+});
+
+/**
+ * FORMAT TIME
+ */
+function formatTime(dateString){
+    if(!dateString) return "";
+    return new Date(dateString).toLocaleString();
+}
+
+/**
+ * RENDER CHAT LIST
+ */
+function renderChats(data){
+
+    const container = document.getElementById("chatList");
+    container.innerHTML = "";
+
+    data.forEach(chat => {
+
+        const image = chat.profile_image
+            ? chat.profile_image
+            : "https://ui-avatars.com/api/?name=" + encodeURIComponent(chat.user_name);
+
+        container.innerHTML += `
+            <div class="chat-item">
+
+                <img src="${image}" />
+
+                <div class="chat-content">
+
+                    <div class="name">${chat.user_name}</div>
+
+                    <div class="last-message">
+                        ${chat.last_message || "No Message"}
+                    </div>
+
+                    <div class="time">
+                        ${formatTime(chat.message_time)}
+                    </div>
+
+                    <div>
+                        ${chat.is_user_online == 1
+                            ? '<span class="online">🟢 Online</span>'
+                            : '<span class="offline">⚫ Offline</span>'
+                        }
+                    </div>
+
+                    <small>${chat.conversation_id}</small>
+
+                </div>
+
+                ${
+                    chat.unread_count > 0
+                    ? `<div class="unread">${chat.unread_count}</div>`
+                    : ""
+                }
+
+            </div>
+        `;
     });
+}
 
-    socket.on("receive_message", (data) => {
-      log("New Message: " + JSON.stringify(data));
-    });
+/**
+ * LOAD CHAT LIST (FIXED + DEBUGGED)
+ */
+function loadChats(){
 
-    socket.on("wallet_updated", (data) => {
-      log("Wallet Update: " + JSON.stringify(data));
-    });
+    const astrologer_id = Number(
+        document.getElementById("astrologerId").value
+    );
 
-    socket.on("chat_ended", (data) => {
-      log("Chat Ended: " + JSON.stringify(data));
-    });
+    log("--------------------------------");
+    log("🚀 LOAD CHATS CLICKED");
+    log("Astrologer ID : " + astrologer_id);
+    log("Socket Connected : " + socket.connected);
 
-    function getChatList() {
-      const astrologer_id = document.getElementById("astroId").value;
+    console.log("🚀 EMIT BEFORE SEND");
 
-      socket.emit(
+    socket.emit(
         "astrologer_chat_list",
         { astrologer_id },
-        (res) => {
-          document.getElementById("list").innerText =
-            JSON.stringify(res, null, 2);
 
-          log("Chat List Received");
+        (response) => {
+
+            console.log("🔥 CALLBACK RECEIVED:", response);
+            log("SERVER RESPONSE RECEIVED");
+
+            if(!response){
+                log("❌ No response from server");
+                return;
+            }
+
+            if(!response.success){
+                log("❌ ERROR: " + response.message);
+                return;
+            }
+
+            log("🔥 TOTAL CHATS: " + response.total);
+
+            renderChats(response.data);
         }
-      );
-    }
+    );
 
-    function joinRoom() {
-      const conversation_id =
-        document.getElementById("conversationId").value;
+    console.log("🚀 EMIT AFTER SEND");
+}
 
-      socket.emit("join_room", {
-        conversation_id,
-        sender_type: "astrologer"
-      });
+</script>
 
-      log("Joined Room: " + conversation_id);
-    }
-
-    function sendMsg() {
-      const conversation_id =
-        document.getElementById("conversationId").value;
-
-      const message =
-        document.getElementById("msg").value;
-
-      socket.emit("send_message", {
-        conversation_id,
-        sender_type: "astrologer",
-        sender_id: 1,
-        message,
-        message_type: "text"
-      });
-
-      log("Message Sent: " + message);
-    }
-  </script>
 </body>
 </html>
