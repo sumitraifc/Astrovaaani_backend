@@ -1,5 +1,5 @@
 const db = require("../config/db");
-
+const { sendNotification } = require("../config/notification");
 /* =========================
    GET ALL ASTROLOGERS
 ========================= */

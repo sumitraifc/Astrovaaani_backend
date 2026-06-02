@@ -2,6 +2,7 @@ const { v4: uuidv4 } = require("uuid");
 const db = require("../config/db");
 const { setAstrologerOnlineStatus } = require("./astrologerHandler");
 // const { setAstrologerOnlineStatus, setAstrologerChatStatus } = require("./astrologerHandler");
+const { sendNotification } = require("../config/notification");
 
 const activeTimers = {};
 const onlineUsers = {};
@@ -181,6 +182,53 @@ console.log(
       );
 
       const conversation = conversationRows[0];
+      /**
+ * GET ASTROLOGER FCM TOKEN
+ */
+const [astroTokenRows] = await db.query(
+  `
+  SELECT fcm_token
+  FROM astrologers
+  WHERE id = ?
+  LIMIT 1
+  `,
+  [astrologer_id]
+);
+
+const fcmToken = astroTokenRows[0]?.fcm_token;
+
+/**
+ * SEND PUSH NOTIFICATION
+ */
+if (fcmToken) {
+  try {
+
+    await sendNotification({
+      token: fcmToken,
+      title: "New Chat Request",
+      body: `${userRows[0].name} has started a chat with you`,
+      data: {
+        type: "new_chat",
+        conversation_id: conversation.conversation_id,
+        user_id,
+        astrologer_id,
+        user_name: userRows[0].name
+      }
+    });
+
+    console.log(
+      `[FCM SENT] New chat notification sent to astrologer ${astrologer_id}`
+    );
+
+  } catch (error) {
+
+    console.log(
+      `[FCM ERROR]`,
+      error.message
+    );
+
+  }
+}
 
       /**
        * JOIN ROOM

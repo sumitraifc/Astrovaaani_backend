@@ -384,7 +384,7 @@ exports.verifyOtp = async (mobile, otp, fcm_token = null) => {
 
     return {
       // success: false,
-      // statusCode: 401,
+      statusCode: 401,
       is_new_user: true,
       nextStep: role === "astrologer" ? 1 : null,
       message: "User not registered. Please complete registration",
