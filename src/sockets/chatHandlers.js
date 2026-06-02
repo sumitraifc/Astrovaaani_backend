@@ -418,10 +418,11 @@ if (fcmToken) {
         SET
           total_messages = total_messages + 1,
           last_message_at = NOW(),
+          last_message = ?
           updated_at = NOW()
         WHERE conversation_id = ?
         `,
-        [conversation_id]
+        [message,conversation_id]
       );
 
       /**
@@ -643,10 +644,52 @@ console.log(
           60000
         );
       }
-
       /**
-       * SEND MESSAGE
-       */
+ * 🔥 GET UPDATED CHAT ROW (SINGLE CONVERSATION)
+ */
+        const [updatedRows] = await db.query(`
+          SELECT
+            cc.id,
+            cc.conversation_id,
+            cc.status,
+            cc.is_user_online,
+            cc.is_astrologer_online,
+            cc.total_messages,
+            cc.duration,
+            cc.amount,
+            cc.started_at,
+            cc.last_message_at,
+
+            u.id AS user_id,
+            u.name AS user_name,
+            u.profile_image,
+
+            lm.message AS last_message,
+            lm.message_type,
+            lm.file_url,
+            lm.sent_at AS message_time
+
+          FROM chat_conversations cc
+
+          LEFT JOIN users u ON u.id = cc.user_id
+
+          LEFT JOIN chat_messages lm ON lm.id = (
+            SELECT id
+            FROM chat_messages
+            WHERE conversation_id = cc.conversation_id
+            ORDER BY id DESC
+            LIMIT 1
+          )
+
+          WHERE cc.conversation_id = ?
+          LIMIT 1
+        `, [conversation_id]);
+       const updatedConversation = updatedRows[0];
+       io.to(conversation.astrologer_id)
+          .emit("chat_list_update", {
+            type: "update_single",
+            data: updatedConversation
+          });
       io.in("room_" + conversation_id).emit("receive_message", savedMessage);
     } catch (err) {
       console.log("Message Error:", err.message);
