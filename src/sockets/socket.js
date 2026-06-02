@@ -39,8 +39,8 @@ module.exports = (io) => {
         await chatHandle.handleChatDisconnect();
 
         // Handle astrologer chat list disconnections
-        await astrologerChatListHandle.handleAstrologerChatListDisconnect();
-        
+        // await astrologerChatListHandle.handleAstrologerChatListDisconnect();
+
       } catch (err) {
         console.log("Disconnect Error:", err.message);
       }
