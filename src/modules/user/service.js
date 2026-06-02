@@ -443,6 +443,7 @@ exports.verifyOtp = async (mobile, otp, fcm_token = null) => {
 
     return {
       success: true,
+      statusCode: 401,
       message: "Registration in progress / under review",
       login_blocked: true,
 
@@ -474,6 +475,7 @@ exports.verifyOtp = async (mobile, otp, fcm_token = null) => {
   await redis.del(`otp_role:${mobile}`);
 
   return {
+    
     success: true,
     message: "Login successful",
     token,
