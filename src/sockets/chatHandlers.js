@@ -418,7 +418,7 @@ if (fcmToken) {
         SET
           total_messages = total_messages + 1,
           last_message_at = NOW(),
-          last_message = ?
+          last_message = ?,
           updated_at = NOW()
         WHERE conversation_id = ?
         `,
@@ -685,11 +685,14 @@ console.log(
           LIMIT 1
         `, [conversation_id]);
        const updatedConversation = updatedRows[0];
-       io.to(conversation.astrologer_id)
+       io.to(`astrologer_${conversation.astrologer_id}`)
           .emit("chat_list_update", {
             type: "update_single",
             data: updatedConversation
           });
+
+          console.log("updatedRows", updatedRows);
+
       io.in("room_" + conversation_id).emit("receive_message", savedMessage);
     } catch (err) {
       console.log("Message Error:", err.message);
