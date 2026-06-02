@@ -48,7 +48,7 @@ exports.update = async (id, data) => {
 
   const sql = `UPDATE users SET ${setQuery} WHERE id = ?`;
 
-  await db.query(sql, [...values, id]);
+  await pool.query(sql, [...values, id]);
 
   return true;
 };
