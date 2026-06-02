@@ -1,6 +1,7 @@
 const { v4: uuidv4 } = require("uuid");
 const db = require("../config/db");
-const { setAstrologerOnlineStatus, setAstrologerChatStatus } = require("./astrologerHandler");
+const { setAstrologerOnlineStatus } = require("./astrologerHandler");
+// const { setAstrologerOnlineStatus, setAstrologerChatStatus } = require("./astrologerHandler");
 
 const activeTimers = {};
 const onlineUsers = {};
@@ -53,7 +54,7 @@ module.exports = (io, socket) => {
           id,
           name,
           chat_charge,
-          chat_status
+           is_online
         FROM astrologers
         WHERE id = ?
         LIMIT 1
@@ -71,7 +72,8 @@ module.exports = (io, socket) => {
       /**
        * ASTROLOGER BUSY CHECK
        */
-      if (astroRows[0].chat_status === "busy") {
+      // if (astroRows[0].chat_status === "busy") {
+      if (Number(astroRows[0].is_online) === 2) {
         return callback({
           success: false,
           message: "Astrologer is busy"
@@ -138,16 +140,25 @@ module.exports = (io, socket) => {
       /**
        * ASTROLOGER BUSY
        */
-      await db.query(
-        `
-        UPDATE astrologers
-        SET chat_status = 'busy'
-        WHERE id = ?
-        `,
-        [astrologer_id]
-      );
+      // await db.query(
+      //   `
+      //   UPDATE astrologers
+      //   SET chat_status = 'busy'
+      //   WHERE id = ?
+      //   `,
+      //   [astrologer_id]
+      // );
 
-      await setAstrologerChatStatus(io, astrologer_id, "busy");
+      // await setAstrologerChatStatus(io, astrologer_id, "busy");
+      await setAstrologerOnlineStatus(
+  io,
+  astrologer_id,
+  2
+);
+
+console.log(
+  `[CHAT STARTED] Astrologer ${astrologer_id} -> BUSY`
+);
 
       /**
        * GET CONVERSATION
@@ -493,15 +504,23 @@ module.exports = (io, socket) => {
                 /**
                  * ASTROLOGER ONLINE
                  */
-                await db.query(
-                  `
-                  UPDATE astrologers
-                  SET chat_status = 'online'
-                  WHERE id = ?
-                  `,
-                  [conversation.astrologer_id]
-                );
+                // await db.query(
+                //   `
+                //   UPDATE astrologers
+                //   SET chat_status = 'online'
+                //   WHERE id = ?
+                //   `,
+                //   [conversation.astrologer_id]
+                // );
+  await setAstrologerOnlineStatus(
+  io,
+  conversation.astrologer_id,
+  1
+);
 
+console.log(
+  `[LOW BALANCE] Astrologer ${conversation.astrologer_id} -> ONLINE`
+);
                 io.to("room_" + conversation_id).emit("chat_ended", {
                   success: false,
                   message: "Insufficient balance"
@@ -689,16 +708,25 @@ module.exports = (io, socket) => {
       );
 
       if (convRows.length) {
-        await db.query(
-          `
-          UPDATE astrologers
-          SET chat_status = 'online'
-          WHERE id = ?
-          `,
-          [convRows[0].astrologer_id]
-        );
+        // await db.query(
+        //   `
+        //   UPDATE astrologers
+        //   SET chat_status = 'online'
+        //   WHERE id = ?
+        //   `,
+        //   [convRows[0].astrologer_id]
+        // );
 
-        await setAstrologerOnlineStatus(io, convRows[0].astrologer_id, 1);
+        // await setAstrologerOnlineStatus(io, convRows[0].astrologer_id, 1);
+        await setAstrologerOnlineStatus(
+  io,
+  convRows[0].astrologer_id,
+  1
+);
+
+console.log(
+  `[CHAT ENDED] Astrologer ${convRows[0].astrologer_id} -> ONLINE`
+);
       }
 
       io.to("room_" + conversation_id).emit("chat_ended", {
@@ -761,20 +789,43 @@ module.exports = (io, socket) => {
     );
 
     if (convRows.length) {
-      await db.query(
-        `
-        UPDATE astrologers
-        SET chat_status = 'online'
-        WHERE id = ?
-        `,
-        [convRows[0].astrologer_id]
-      );
+      // await db.query(
+      //   `
+      //   UPDATE astrologers
+      //   SET chat_status = 'online'
+      //   WHERE id = ?
+      //   `,
+      //   [convRows[0].astrologer_id]
+      // );
+if (sender_type === "astrologer" && astrologer_id) {
 
-      if (sender_type === "astrologer" && astrologer_id) {
-        await setAstrologerOnlineStatus(io, astrologer_id, 0);
-      } else if (astrologer_id) {
-        await setAstrologerOnlineStatus(io, astrologer_id, 1);
-      }
+  await setAstrologerOnlineStatus(
+    io,
+    astrologer_id,
+    0
+  );
+
+  console.log(
+    `[DISCONNECT] Astrologer ${astrologer_id} -> OFFLINE`
+  );
+
+} else if (astrologer_id) {
+
+  await setAstrologerOnlineStatus(
+    io,
+    astrologer_id,
+    1
+  );
+
+  console.log(
+    `[DISCONNECT] User left, Astrologer ${astrologer_id} -> ONLINE`
+  );
+}
+      // if (sender_type === "astrologer" && astrologer_id) {
+      //   await setAstrologerOnlineStatus(io, astrologer_id, 0);
+      // } else if (astrologer_id) {
+      //   await setAstrologerOnlineStatus(io, astrologer_id, 1);
+      // }
     }
 
     delete onlineUsers[socket.id];

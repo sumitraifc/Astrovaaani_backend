@@ -7,11 +7,20 @@ exports.step1 = async (req, res) => {
 
     const files = req.files;
 
-    const profile_image =
-      files?.profile_image?.[0]?.path || null;
+    // const profile_image =
+    //   files?.profile_image?.[0]?.path || null;
 
-    const id_proof =
-      files?.id_proof?.[0]?.path || null;
+    // const id_proof =
+    //   files?.id_proof?.[0]?.path || null;
+    const profile_image =
+  files?.profile_image?.[0]?.filename ||
+  files?.profile_image?.[0]?.path?.split("/").pop() ||
+  null;
+
+const id_proof =
+  files?.id_proof?.[0]?.filename ||
+  files?.id_proof?.[0]?.path?.split("/").pop() ||
+  null;
 
     const result = await service.saveStep(1, null, {
 
@@ -40,8 +49,12 @@ exports.step2 = async (req, res) => {
 
     const files = req.files;
 
+    // const education_cert =
+    //   files?.education_cert?.[0]?.path || null;
     const education_cert =
-      files?.education_cert?.[0]?.path || null;
+  files?.education_cert?.[0]?.filename ||
+  files?.education_cert?.[0]?.path?.split("/").pop() ||
+  null;
 
     const result = await service.saveStep(
       2,
@@ -71,21 +84,36 @@ exports.step3 = async (req, res) => {
     const result = await service.saveStep(
       3,
       req.body.id,
+      // {
+      //   ...req.body,
+
+      //   id_proof:
+      //     files?.id_proof?.[0]?.path || null,
+
+      //   address_proof:
+      //     files?.address_proof?.[0]?.path || null,
+
+      //   education_cert:
+      //     files?.education_cert?.[0]?.path || null,
+
+      //   astro_cert:
+      //     files?.astro_cert?.[0]?.path || null,
+      // }
       {
-        ...req.body,
+  ...req.body,
 
-        id_proof:
-          files?.id_proof?.[0]?.path || null,
+  id_proof:
+    files?.id_proof?.[0]?.filename || null,
 
-        address_proof:
-          files?.address_proof?.[0]?.path || null,
+  address_proof:
+    files?.address_proof?.[0]?.filename || null,
 
-        education_cert:
-          files?.education_cert?.[0]?.path || null,
+  education_cert:
+    files?.education_cert?.[0]?.filename || null,
 
-        astro_cert:
-          files?.astro_cert?.[0]?.path || null,
-      }
+  astro_cert:
+    files?.astro_cert?.[0]?.filename || null,
+}
     );
 
     res.json(result);

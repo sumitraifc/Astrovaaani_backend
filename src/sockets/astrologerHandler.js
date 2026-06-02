@@ -31,7 +31,9 @@ async function getAllAstrologers() {
       updated_at,
       live_status
     FROM astrologers
-    WHERE status = 'active'
+     WHERE status = 'active'
+  AND approval_status = 'approved'
+    
     ORDER BY
       CASE
         WHEN is_online = 1 AND live_status = 'busy' THEN 1
@@ -43,8 +45,10 @@ async function getAllAstrologers() {
       name ASC
   `);
 
-  return rows;
+  // return rows;
+  return rows.map(formatAstrologer);
 }
+
 
 /* =========================
    GET SINGLE ASTROLOGER
@@ -90,16 +94,32 @@ async function getSingleAstrologer(astrologerId) {
     LIMIT 1
   `, [astrologerId]);
 
-  return rows[0] || null;
+  // return rows[0] || null;
+  return formatAstrologer(rows[0] || null);
 }
 
+/* =========================
+   PROFILE URL FUNCATIO
+========================= */
+
+function formatAstrologer(astrologer) {
+  if (astrologer?.profile_image) {
+    astrologer.profile_image =
+      `${process.env.BASE_URL}/uploads/${astrologer.profile_image}`;
+  }
+
+  return astrologer;
+}
 /* =========================
    ONLINE STATUS UPDATE
 ========================= */
 async function setAstrologerOnlineStatus(io, astrologerId, isOnline) {
 
-  const statusValue = Number(isOnline);
-  if (![0, 1].includes(statusValue)) return null;
+  // const statusValue = Number(isOnline);
+  // if (![0, 1].includes(statusValue)) return null;
+  
+const statusValue = Number(isOnline);
+if (![0, 1, 2].includes(statusValue)) return null;
 
   const [rows] = await db.query(
     `SELECT id FROM astrologers WHERE id = ? LIMIT 1`,
@@ -108,20 +128,32 @@ async function setAstrologerOnlineStatus(io, astrologerId, isOnline) {
 
   if (!rows.length) return null;
 
-  await db.query(
-    `
-    UPDATE astrologers
-    SET is_online = ?,
-        live_status = CASE
-          WHEN ? = 0 THEN 'offline'
-          WHEN live_status = 'offline' THEN 'online'
-          ELSE live_status
-        END
-    WHERE id = ?
-    `,
-    [statusValue, statusValue, astrologerId]
-  );
-
+  // await db.query(
+  //   `
+  //   UPDATE astrologers
+  //   SET is_online = ?,
+  //       live_status = CASE
+  //         WHEN ? = 0 THEN 'offline'
+  //         WHEN live_status = 'offline' THEN 'online'
+  //         ELSE live_status
+  //       END
+  //   WHERE id = ?
+  //   `,
+  //   [statusValue, statusValue, astrologerId]
+  // );
+await db.query(
+  `
+  UPDATE astrologers
+  SET is_online = ?,
+      live_status = CASE
+        WHEN ? = 0 THEN 'offline'
+        WHEN ? = 1 THEN 'online'
+        WHEN ? = 2 THEN 'busy'
+      END
+  WHERE id = ?
+  `,
+  [statusValue, statusValue, statusValue, statusValue, astrologerId]
+);
   const updated = await getSingleAstrologer(astrologerId);
 
   io.emit("astrologer:single_updated", {

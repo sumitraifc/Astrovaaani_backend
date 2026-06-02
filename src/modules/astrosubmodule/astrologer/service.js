@@ -85,7 +85,11 @@ exports.saveStep = async (step, id, payload) => {
   // STEP 1 CREATE
   // ======================
   if (step === 1) {
+const existing = await repo.findByMobile(payload.phone);
 
+if (existing) {
+  throw new Error("This mobile already registered");
+}
     const newId = await repo.create({
           uuid: uuidv4(),
       phone: payload.phone,
@@ -160,6 +164,7 @@ exports.saveStep = async (step, id, payload) => {
     status: updateData.approval_status
   };
 };
+
 exports.getStatus = async (id) => {
   return await repo.findById(id);
 };

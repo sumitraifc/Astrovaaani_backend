@@ -209,15 +209,149 @@ exports.sendOtp = async (mobile, role) => {
 //   };
 // };
 
-exports.verifyOtp = async (mobile, otp) => {
+// exports.verifyOtp = async (mobile, otp , fcm_token = null) => {
+
+//   if (!mobile || !otp) {
+//     throw new Error("Mobile & OTP required");
+//   }
+
+//   const storedOtp = await redis.get(`otp:${mobile}`);
+
+//   console.log("storedOtp", storedOtp);
+
+//   if (!storedOtp) {
+//     throw new Error("OTP expired. Please resend OTP");
+//   }
+
+//   if (storedOtp !== otp) {
+//     throw new Error("Invalid OTP");
+//   }
+
+//   // 🔥 ROLE FETCH (NEW ADDITION ONLY)
+//   const role = await redis.get(`otp_role:${mobile}`);
+
+//   let user;
+
+//   /**
+//    * FIND USER (USER TABLE)
+//    */
+//   if (!role || role === "user") {
+//     user = await repo.findByMobile(mobile);
+//   }
+
+//   /**
+//    * FIND ASTROLOGER (ASTROLOGER TABLE)
+//    */
+
+//   if (role === "astrologer") {
+//     user = await astroRepo.findByMobile(mobile);
+//   }
+
+  
+//   if (!user) {
+
+//     await redis.del(`otp:${mobile}`);
+//     await redis.del(`otp_role:${mobile}`);
+
+//     return {
+//       success: false,
+//       statusCode: 401,
+
+//       is_new_user: true,
+//       nextStep: 1,
+//       message: "User not registered. Please complete registration",
+
+//       mobile,
+//     };
+//   }
+
+// //   if (role === "astrologer") {
+
+// //   if (!user.registration_completed) {
+
+// //     return {
+// //       success: true,
+// //       is_new_user: false,
+
+// //       astrologer_id: user.id,
+
+// //       registration_incomplete: true,
+
+// //       nextStep: user.registration_step,
+
+// //       message: `Continue registration from step ${user.registration_step}`
+// //     };
+// //   }
+
+// //   if (user.approval_status === "pending") {
+
+// //     return {
+// //       success: true,
+// //       astrologer_id: user.id,
+// //       approval_status: "pending",
+// //       message: "Profile under review"
+// //     };
+// //   }
+// // }
+//   /**
+//    * BLOCK CHECK
+//    */
+//   if (user.status === "blocked") {
+//     throw new Error("User is blocked");
+//   }
+// // SAVE FCM TOKEN
+
+// if (fcm_token) {
+
+//   if (role === "astrologer") {
+
+//     await astroRepo.update(user.id, {
+//       fcm_token,
+      
+//     });
+
+//   } else {
+
+//     await repo.update(user.id, {
+//       fcm_token,
+      
+//     });
+//   }
+
+//   user.fcm_token = fcm_token;
+ 
+// }
+//   const token = generateToken({
+//     id: user.id,
+//     mobile: user.mobile,
+//     uuid: user.uuid,
+//     status: user.status,
+//     role: role || "user"
+//   });
+
+//   await redis.del(`otp:${mobile}`);
+//   await redis.del(`otp_role:${mobile}`);
+
+//   return {
+//     success: true,
+//     message: "Login successful",
+
+//     is_new_user: false,
+
+//     token,
+
+//     user,
+//   };
+// };
+
+
+exports.verifyOtp = async (mobile, otp, fcm_token = null) => {
 
   if (!mobile || !otp) {
     throw new Error("Mobile & OTP required");
   }
 
   const storedOtp = await redis.get(`otp:${mobile}`);
-
-  console.log("storedOtp", storedOtp);
 
   if (!storedOtp) {
     throw new Error("OTP expired. Please resend OTP");
@@ -227,85 +361,113 @@ exports.verifyOtp = async (mobile, otp) => {
     throw new Error("Invalid OTP");
   }
 
-  // 🔥 ROLE FETCH (NEW ADDITION ONLY)
-  const role = await redis.get(`otp_role:${mobile}`);
+  const role = await redis.get(`otp_role:${mobile}`) || "user";
 
   let user;
 
-  /**
-   * FIND USER (USER TABLE)
-   */
-  if (!role || role === "user") {
+  // ======================
+  // FIND USER / ASTROLOGER
+  // ======================
+  if (role === "astrologer") {
+    user = await astroRepo.findByMobile(mobile);
+  } else {
     user = await repo.findByMobile(mobile);
   }
 
-  /**
-   * FIND ASTROLOGER (ASTROLOGER TABLE)
-   */
-
-  if (role === "astrologer") {
-    user = await astroRepo.findByMobile(mobile);
-  }
-
-  
+  // ======================
+  // NOT FOUND USER
+  // ======================
   if (!user) {
 
     await redis.del(`otp:${mobile}`);
     await redis.del(`otp_role:${mobile}`);
 
     return {
-      success: false,
-      statusCode: 401,
-
+      // success: false,
+      // statusCode: 401,
       is_new_user: true,
-      nextStep: 1,
+      nextStep: role === "astrologer" ? 1 : null,
       message: "User not registered. Please complete registration",
-
       mobile,
     };
   }
 
-//   if (role === "astrologer") {
+  // ======================
+  // NORMAL USER LOGIN (SIMPLE)
+  // ======================
+  if (role !== "astrologer") {
 
-//   if (!user.registration_completed) {
+    const token = generateToken({
+      id: user.id,
+      mobile: user.mobile,
+      role: "user"
+    });
 
-//     return {
-//       success: true,
-//       is_new_user: false,
+    if (fcm_token) {
+      await repo.update(user.id, { fcm_token });
+    }
 
-//       astrologer_id: user.id,
+    await redis.del(`otp:${mobile}`);
+    await redis.del(`otp_role:${mobile}`);
 
-//       registration_incomplete: true,
+    return {
+      success: true,
+      message: "Login successful",
+      token,
+      user
+    };
+  }
 
-//       nextStep: user.registration_step,
+  // ======================
+  // ASTROLOGER FLOW (IMPORTANT FIX)
+  // ======================
 
-//       message: `Continue registration from step ${user.registration_step}`
-//     };
-//   }
+  // ❌ REJECTED → BLOCK LOGIN
+  if (user.approval_status === "rejected") {
+    return {
+      // success: false,
+      // statusCode: 403,
+      message: "Your profile is rejected. Please register with another number."
+    };
+  }
 
-//   if (user.approval_status === "pending") {
+  // ⛔ NOT APPROVED YET → NO FULL LOGIN TOKEN
+  if (user.approval_status !== "approved") {
 
-//     return {
-//       success: true,
-//       astrologer_id: user.id,
-//       approval_status: "pending",
-//       message: "Profile under review"
-//     };
-//   }
-// }
-  /**
-   * BLOCK CHECK
-   */
-  if (user.status === "blocked") {
-    throw new Error("User is blocked");
+    if (fcm_token) {
+      await astroRepo.update(user.id, { fcm_token });
+    }
+
+    await redis.del(`otp:${mobile}`);
+    await redis.del(`otp_role:${mobile}`);
+
+    return {
+      success: true,
+      message: "Registration in progress / under review",
+      login_blocked: true,
+
+      astrologer_id: user.id,
+      approval_status: user.approval_status,
+      registration_step: user.registration_step,
+      registration_completed: user.registration_completed,
+
+      nextStep: user.registration_step
+    };
+  }
+
+  // ======================
+  // ONLY APPROVED → LOGIN ALLOWED
+  // ======================
+
+  if (fcm_token) {
+    await astroRepo.update(user.id, { fcm_token });
   }
 
   const token = generateToken({
     id: user.id,
     mobile: user.mobile,
-    uuid: user.uuid,
-    status: user.status,
-    role: role || "user"
+    role: "astrologer",
+    status: "approved"
   });
 
   await redis.del(`otp:${mobile}`);
@@ -314,12 +476,11 @@ exports.verifyOtp = async (mobile, otp) => {
   return {
     success: true,
     message: "Login successful",
-
-    is_new_user: false,
-
     token,
-
     user,
+    approval_status: user.approval_status,
+    registration_step: user.registration_step,
+    registration_completed: user.registration_completed
   };
 };
 

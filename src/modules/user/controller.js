@@ -73,10 +73,12 @@ exports.verifyOtp = async (req, res) => {
 
   try {
 
-    const result = await service.verifyOtp(
-      req.body.mobile,
-      req.body.otp
-    );
+   const result = await service.verifyOtp(
+  req.body.mobile,
+  req.body.otp,
+  req.body.fcm_token,
+
+);
 
     /**
      * NEW USER
