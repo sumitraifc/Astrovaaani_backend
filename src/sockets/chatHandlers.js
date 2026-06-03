@@ -265,67 +265,76 @@ if (fcmToken) {
    * JOIN ROOM
    * =========================================
    */
-  socket.on("join_room", async (data) => {
-    try {
-      const { conversation_id, sender_type } = data;
+socket.on("join_room", async (data, callback) => {
+  try {
+    const { conversation_id, sender_type } = data;
 
-      /**
-       * ROOM VALIDATION
-       */
-      const [roomRows] = await db.query(
+    const [roomRows] = await db.query(
+      `
+      SELECT id, astrologer_id, user_id
+      FROM chat_conversations
+      WHERE conversation_id = ?
+      LIMIT 1
+      `,
+      [conversation_id]
+    );
+
+    if (!roomRows.length) {
+      return callback?.({
+        success: false,
+        message: "Conversation not found"
+      });
+    }
+
+    socket.join("room_" + conversation_id);
+
+    onlineUsers[socket.id] = {
+      conversation_id,
+      sender_type,
+      astrologer_id: roomRows[0].astrologer_id,
+      user_id: roomRows[0].user_id
+    };
+
+    if (sender_type === "user") {
+      await db.query(
         `
-        SELECT id, astrologer_id, user_id
-        FROM chat_conversations
+        UPDATE chat_conversations
+        SET is_user_online = 1
         WHERE conversation_id = ?
-        LIMIT 1
         `,
         [conversation_id]
       );
-
-      if (!roomRows.length) {
-        return;
-      }
-
-      socket.join("room_" + conversation_id);
-
-      onlineUsers[socket.id] = {
-        conversation_id,
-        sender_type,
-        astrologer_id: roomRows[0].astrologer_id,
-        user_id: roomRows[0].user_id
-      };
-
-      /**
-       * ONLINE STATUS
-       */
-      if (sender_type === "user") {
-        await db.query(
-          `
-          UPDATE chat_conversations
-          SET is_user_online = 1
-          WHERE conversation_id = ?
-          `,
-          [conversation_id]
-        );
-      } else {
-        await db.query(
-          `
-          UPDATE chat_conversations
-          SET is_astrologer_online = 1
-          WHERE conversation_id = ?
-          `,
-          [conversation_id]
-        );
-      }
-
-      io.to("room_" + conversation_id).emit("user_joined", {
-        sender_type,
-        conversation_id
-      });
-    } catch (err) {
-      console.log("Join Room Error:", err.message);
+    } else {
+      await db.query(
+        `
+        UPDATE chat_conversations
+        SET is_astrologer_online = 1
+        WHERE conversation_id = ?
+        `,
+        [conversation_id]
+      );
     }
-  });
+
+    io.to("room_" + conversation_id).emit("user_joined", {
+      sender_type,
+      conversation_id
+    });
+
+    callback?.({
+      success: true,
+      message: "Room joined successfully",
+      conversation_id
+    });
+
+  } catch (err) {
+    console.log("Join Room Error:", err.message);
+
+    callback?.({
+      success: false,
+      message: err.message
+    });
+  }
+});
 
   /**
    * =========================================
