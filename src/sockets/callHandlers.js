@@ -1,8 +1,6 @@
 const db = require("../config/db");
 const callService = require("../modules/call/service");
-const {
-  setAstrologerOnlineStatus,
-} = require("./astrologerHandler");
+const { setAstrologerOnlineStatus } = require("./astrologerHandler");
 
 /**
  * connectedUsers — socket mapping
@@ -29,7 +27,7 @@ const activeCallTimeouts = {};
 async function getWalletBalance(userId) {
   const [rows] = await db.query(
     `SELECT balance FROM wallet WHERE user_id = ? LIMIT 1`,
-    [Number(userId)]
+    [Number(userId)],
   );
   return Number(rows[0]?.balance || 0);
 }
@@ -45,16 +43,16 @@ async function getAstrologerById(astrologerId) {
     FROM astrologers
     WHERE id = ?
     LIMIT 1`,
-    [Number(astrologerId)]
+    [Number(astrologerId)],
   );
   return rows[0] || null;
 }
 
 async function updateCallHistoryStatus(callId, status) {
-  await db.query(
-    `UPDATE call_history SET status = ? WHERE id = ?`,
-    [status, Number(callId)]
-  );
+  await db.query(`UPDATE call_history SET status = ? WHERE id = ?`, [
+    status,
+    Number(callId),
+  ]);
 }
 
 /**
@@ -65,9 +63,9 @@ async function getUserActiveCall(userId) {
   const [rows] = await db.query(
     `SELECT id FROM call_history
      WHERE user_id = ?
-     AND status IN ('ringing', 'answered')
+     AND status IN ('ringing', 'answered', 'initiate', 'connecting')
      LIMIT 1`,
-    [Number(userId)]
+    [Number(userId)],
   );
   return rows[0] || null;
 }
@@ -81,26 +79,22 @@ async function deductWalletBalance(userId, amount) {
     `UPDATE wallet
      SET balance = balance - ?
      WHERE user_id = ? AND balance >= ?`,
-    [Number(amount), Number(userId), Number(amount)]
+    [Number(amount), Number(userId), Number(amount)],
   );
   return result.affectedRows > 0; // false = insufficient balance at deduction time
 }
 
-
 async function getUserById(userId) {
   const [rows] = await db.query(
-    `
-    SELECT
+    `SELECT
       id,
       name,
       profile_image
     FROM users
     WHERE id = ?
-    LIMIT 1
-    `,
-    [Number(userId)]
+    LIMIT 1`,
+    [Number(userId)],
   );
-
   return rows[0] || null;
 }
 
@@ -109,7 +103,6 @@ async function getUserById(userId) {
 // ─────────────────────────────────────────────────────────────
 
 module.exports = (io, socket) => {
-
   // ─────────────────────────────────────────
   // REGISTER
   // User aur Astrologer dono register karte hain
@@ -139,7 +132,7 @@ module.exports = (io, socket) => {
     try {
       console.log("CALL INITIATE EVENT =>", data);
 
-      const { user_id, astrologer_id, call_type, } = data;
+      const { user_id, astrologer_id, call_type } = data;
 
       // ── 1. Required fields ──
       if (!user_id || !astrologer_id || !call_type) {
@@ -166,14 +159,14 @@ module.exports = (io, socket) => {
           message: "Astrologer not found",
         });
       }
-      const user = await getUserById(user_id);
 
-if (!user) {
-  return socket.emit("call-failed", {
-    success: false,
-    message: "User not found",
-  });
-}
+      const user = await getUserById(user_id);
+      if (!user) {
+        return socket.emit("call-failed", {
+          success: false,
+          message: "User not found",
+        });
+      }
 
       // ── 4. is_online state check ──
       // Number() cast — MySQL se kabhi string aata hai kabhi int
@@ -230,56 +223,44 @@ if (!user) {
         call_type,
       });
 
-      // ── 8. Astrologer busy mark karo (is_online = 2) ──
+      // ── 8. DB mein initiate status ──
+      await updateCallHistoryStatus(tokenData.call_id, "initiate");
+
+      // ── 9. Astrologer busy mark karo (is_online = 2) ──
       await setAstrologerOnlineStatus(io, astrologer_id, 2);
 
-      // ── 9. Astrologer ko incoming call emit ──
-      // io.to(astrologerSocketId).emit("call-initiated", {
-      //   success: true,
-      //   message: "Incoming call",
-      //   data: {
-      //     call_type,
-      //     channel_name: tokenData.channel_name,
-      //     appId: tokenData.appId,
-      //     token: tokenData.token,
-      //     uid: tokenData.uid,
-      //     call_id: tokenData.call_id,
-      //     user_details,
-      //     astrologer_details,
-      //     user_id,
-      //     astrologer_id,
-      //   },
-      // });
-          io.to(astrologerSocketId).emit("call-initiated", {
-  success: true,
-  message: "Incoming call",
-  data: {
-    call_type,
-    channel_name: tokenData.channel_name,
-    appId: tokenData.appId,
-    token: tokenData.token,
-    uid: tokenData.uid,
-    call_id: tokenData.call_id,
+      // ── 10. Astrologer ko incoming call emit ──
+      io.to(astrologerSocketId).emit("call-initiated", {
+        success: true,
+        message: "Incoming call",
+        data: {
+          call_type,
+          channel_name: tokenData.channel_name,
+          appId: tokenData.appId,
+          token: tokenData.token,
+          uid: tokenData.uid,
+          call_id: tokenData.call_id,
 
-    user_details: {
-      id: user.id,
-      name: user.name,
-      profile_image: user.profile_image,
-    },
+          user_details: {
+            id: user.id,
+            name: user.name,
+            profile_image: user.profile_image,
+          },
 
-    astrologer_details: {
-      id: astrologer.id,
-      name: astrologer.name,
-    },
+          astrologer_details: {
+            id: astrologer.id,
+            name: astrologer.name,
+          },
 
-    user_id,
-    astrologer_id,
-  },
-});
-      // ── 10. DB mein ringing status ──
+          user_id,
+          astrologer_id,
+        },
+      });
+
+      // ── 11. DB mein ringing status ──
       await updateCallHistoryStatus(tokenData.call_id, "ringing");
 
-      // ── 11. User ko confirm ──
+      // ── 12. User ko confirm ──
       socket.emit("call-requested", {
         success: true,
         message: "Call request sent",
@@ -290,17 +271,18 @@ if (!user) {
         },
       });
 
-      // ── 12. 45 second auto-timeout ──
+      // ── 13. 45 second auto-timeout ──
       // Agar astrologer ne accept/decline nahi kiya
       const timeoutRef = setTimeout(async () => {
         try {
           const [rows] = await db.query(
             `SELECT status FROM call_history WHERE id = ? LIMIT 1`,
-            [Number(tokenData.call_id)]
+            [Number(tokenData.call_id)],
           );
 
           if (rows[0]?.status === "ringing") {
-            await updateCallHistoryStatus(tokenData.call_id, "missed");
+            // DB: unanswered (45s mein koi response nahi aaya)
+            await updateCallHistoryStatus(tokenData.call_id, "unanswered");
 
             // Astrologer wapas online (is_online = 1)
             await setAstrologerOnlineStatus(io, astrologer_id, 1);
@@ -332,7 +314,6 @@ if (!user) {
       }, 45000);
 
       activeCallTimeouts[tokenData.call_id] = timeoutRef;
-
     } catch (error) {
       console.error("CALL INITIATE ERROR =>", error);
       socket.emit("call-failed", {
@@ -356,6 +337,9 @@ if (!user) {
         delete activeCallTimeouts[call_id];
       }
 
+      // DB: connecting (astrologer ne accept kiya, Agora join ho raha hai)
+      await updateCallHistoryStatus(call_id, "connecting");
+
       // User ko notify
       const userSocketId = connectedUsers[user_id];
       if (userSocketId) {
@@ -366,7 +350,7 @@ if (!user) {
         });
       }
 
-      // DB: answered
+      // DB: answered (dono connected)
       await updateCallHistoryStatus(call_id, "answered");
 
       // Astrologer busy rakho (is_online = 2)
@@ -410,7 +394,6 @@ if (!user) {
           }
         }
       }
-
     } catch (error) {
       console.error("CALL ACCEPT ERROR =>", error);
     }
@@ -445,7 +428,6 @@ if (!user) {
 
       // Astrologer wapas online (is_online = 1)
       await setAstrologerOnlineStatus(io, astrologer_id, 1);
-
     } catch (error) {
       console.error("CALL DECLINE ERROR =>", error);
     }
@@ -492,7 +474,6 @@ if (!user) {
       if (astrologer_id) {
         await setAstrologerOnlineStatus(io, astrologer_id, 1);
       }
-
     } catch (error) {
       console.error("CALL END ERROR =>", error);
     }
@@ -522,12 +503,11 @@ if (!user) {
         });
       }
 
-      // DB: cancelled
-      await updateCallHistoryStatus(call_id, "cancelled");
+      // DB: unanswered (user ne khud cancel kiya)
+      await updateCallHistoryStatus(call_id, "unanswered");
 
       // Astrologer wapas online (is_online = 1)
       await setAstrologerOnlineStatus(io, astrologer_id, 1);
-
     } catch (error) {
       console.error("CALL CANCEL ERROR =>", error);
     }
@@ -551,21 +531,21 @@ if (!user) {
             `SELECT id, user_id, agent_id
              FROM call_history
              WHERE (user_id = ? OR agent_id = ?)
-             AND status IN ('ringing', 'answered')
+             AND status IN ('initiate', 'connecting', 'ringing', 'answered')
              LIMIT 1`,
-            [Number(userId), Number(userId)]
+            [Number(userId), Number(userId)],
           );
 
           if (activeCalls.length > 0) {
             const call = activeCalls[0];
 
-            // Call disconnect mark karo
+            // DB: disconnect
             await updateCallHistoryStatus(call.id, "disconnect");
 
             // Doosri party ko notify karo
             const otherUserId =
               Number(userId) === Number(call.user_id)
-                ? call.astrologer_id
+                ? call.agent_id
                 : call.user_id;
 
             const otherSocketId = connectedUsers[otherUserId];
@@ -578,8 +558,8 @@ if (!user) {
             }
 
             // Astrologer wapas online karo
-            if (call.astrologer_id) {
-              await setAstrologerOnlineStatus(io, call.astrologer_id, 1);
+            if (call.agent_id) {
+              await setAstrologerOnlineStatus(io, call.agent_id, 1);
             }
 
             // Active timeout clear karo
