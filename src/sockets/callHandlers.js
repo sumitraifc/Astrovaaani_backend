@@ -548,7 +548,7 @@ if (!user) {
 
           // Agar ye user/astrologer active call mein tha
           const [activeCalls] = await db.query(
-            `SELECT id, user_id, astrologer_id
+            `SELECT id, user_id, agent_id
              FROM call_history
              WHERE (user_id = ? OR agent_id = ?)
              AND status IN ('ringing', 'answered')
