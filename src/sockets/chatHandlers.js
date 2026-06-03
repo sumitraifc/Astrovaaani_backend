@@ -336,6 +336,85 @@ socket.on("join_room", async (data, callback) => {
   }
 });
 
+
+/**
+ * =========================================
+ * CHAT LIST (USER / ASTROLOGER)
+ * =========================================
+ */
+socket.on("get_chat_list", async (data, callback) => {
+  try {
+    const { user_id, astrologer_id, sender_type } = data;
+
+    let rows = [];
+
+    if (sender_type === "user") {
+      [rows] = await db.query(`
+        SELECT
+          cc.conversation_id,
+          cc.status,
+          cc.last_message,
+          cc.last_message_at,
+
+          a.id AS astrologer_id,
+          a.name,
+          a.profile_image,
+
+          (
+            SELECT COUNT(*)
+            FROM chat_messages cm
+            WHERE cm.conversation_id = cc.conversation_id
+              AND cm.sender_type = 'astrologer'
+              AND cm.is_read = 0
+          ) AS unread_count
+
+        FROM chat_conversations cc
+        JOIN astrologers a ON a.id = cc.astrologer_id
+        WHERE cc.user_id = ?
+        ORDER BY cc.last_message_at DESC
+      `, [user_id]);
+    } else {
+      [rows] = await db.query(`
+        SELECT
+          cc.conversation_id,
+          cc.status,
+          cc.last_message,
+          cc.last_message_at,
+
+          u.id AS user_id,
+          u.name,
+          u.profile_image,
+
+          (
+            SELECT COUNT(*)
+            FROM chat_messages cm
+            WHERE cm.conversation_id = cc.conversation_id
+              AND cm.sender_type = 'user'
+              AND cm.is_read = 0
+          ) AS unread_count
+
+        FROM chat_conversations cc
+        JOIN users u ON u.id = cc.user_id
+        WHERE cc.astrologer_id = ?
+        ORDER BY cc.last_message_at DESC
+      `, [astrologer_id]);
+    }
+
+    callback?.({
+      success: true,
+      data: rows
+    });
+
+  } catch (err) {
+    console.log("Chat List Error:", err.message);
+
+    callback?.({
+      success: false,
+      message: err.message
+    });
+  }
+});
+
   /**
    * =========================================
    * TYPING
@@ -713,24 +792,40 @@ console.log(
    * SEEN MESSAGE
    * =========================================
    */
-  socket.on("seen_messages", async (data) => {
-    try {
-      await db.query(
-        `
-        UPDATE chat_messages
-        SET is_read = 1
-        WHERE conversation_id = ?
-        `,
-        [data.conversation_id]
-      );
+ socket.on("seen_messages", async (data, callback) => {
+  try {
+    const { conversation_id } = data;
 
-      io.to("room_" + data.conversation_id).emit("messages_seen", {
-        conversation_id: data.conversation_id
-      });
-    } catch (err) {
-      console.log("Seen Message Error:", err.message);
-    }
-  });
+    await db.query(
+      `
+      UPDATE chat_messages
+      SET is_read = 1
+      WHERE conversation_id = ?
+      `,
+      [conversation_id]
+    );
+
+    io.to("room_" + conversation_id).emit("messages_seen", {
+      conversation_id
+    });
+
+    // ✅ ACK success response
+    callback?.({
+      success: true,
+      message: "Messages marked as seen",
+      conversation_id
+    });
+
+  } catch (err) {
+    console.log("Seen Message Error:", err.message);
+
+    // ❌ ACK error response
+    callback?.({
+      success: false,
+      message: err.message
+    });
+  }
+});
 
   /**
    * =========================================
