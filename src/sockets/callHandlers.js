@@ -560,7 +560,7 @@ if (!user) {
             const call = activeCalls[0];
 
             // Call disconnect mark karo
-            await updateCallHistoryStatus(call.id, "disconnected");
+            await updateCallHistoryStatus(call.id, "disconnect");
 
             // Doosri party ko notify karo
             const otherUserId =
