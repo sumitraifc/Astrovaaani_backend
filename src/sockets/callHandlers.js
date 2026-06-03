@@ -550,7 +550,7 @@ if (!user) {
           const [activeCalls] = await db.query(
             `SELECT id, user_id, astrologer_id
              FROM call_history
-             WHERE (user_id = ? OR astrologer_id = ?)
+             WHERE (user_id = ? OR agent_id = ?)
              AND status IN ('ringing', 'answered')
              LIMIT 1`,
             [Number(userId), Number(userId)]
