@@ -3,6 +3,8 @@
 # =========================
 node_modules/
 
+src/config/redis.js
+
 uploads/
 .gitignore
 # =========================

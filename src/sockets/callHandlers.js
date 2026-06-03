@@ -1,7 +1,30 @@
 const db = require("../config/db");
 const callService = require("../modules/call/service");
+const {
+  setAstrologerOnlineStatus,
+} = require("./astrologerHandler");
+
+/**
+ * connectedUsers — socket mapping
+ * Format: { userId: socketId, astrologerId: socketId }
+ * NOTE: Production mein Redis use karo (multi-instance ke liye)
+ *
+ * is_online states:
+ *   0 = offline
+ *   1 = online (available)
+ *   2 = busy   (in call / ringing)
+ */
 const connectedUsers = {};
-const { setAstrologerOnlineStatus, setAstrologerChatStatus } = require("./astrologerHandler");
+
+/**
+ * activeCallTimeouts — ringing timeout tracking
+ * Format: { call_id: timeoutRef }
+ */
+const activeCallTimeouts = {};
+
+// ─────────────────────────────────────────────────────────────
+// DB HELPERS
+// ─────────────────────────────────────────────────────────────
 
 async function getWalletBalance(userId) {
   const [rows] = await db.query(
@@ -13,18 +36,15 @@ async function getWalletBalance(userId) {
 
 async function getAstrologerById(astrologerId) {
   const [rows] = await db.query(
-    `
-      SELECT
-        id,
-        name,
-        chat_status,
-        is_online,
-        audio_charge,
-        video_charge
-      FROM astrologers
-      WHERE id = ?
-      LIMIT 1
-    `,
+    `SELECT
+      id,
+      name,
+      is_online,
+      audio_charge,
+      video_charge
+    FROM astrologers
+    WHERE id = ?
+    LIMIT 1`,
     [Number(astrologerId)]
   );
   return rows[0] || null;
@@ -37,196 +57,543 @@ async function updateCallHistoryStatus(callId, status) {
   );
 }
 
+/**
+ * User ka koi active call already chal raha hai check karo
+ * (duplicate call guard)
+ */
+async function getUserActiveCall(userId) {
+  const [rows] = await db.query(
+    `SELECT id FROM call_history
+     WHERE user_id = ?
+     AND status IN ('ringing', 'answered')
+     LIMIT 1`,
+    [Number(userId)]
+  );
+  return rows[0] || null;
+}
+
+/**
+ * Wallet se amount deduct karo
+ * Double deduction se bachne ke liye balance check bhi hai
+ */
+async function deductWalletBalance(userId, amount) {
+  const [result] = await db.query(
+    `UPDATE wallet
+     SET balance = balance - ?
+     WHERE user_id = ? AND balance >= ?`,
+    [Number(amount), Number(userId), Number(amount)]
+  );
+  return result.affectedRows > 0; // false = insufficient balance at deduction time
+}
+
+
+async function getUserById(userId) {
+  const [rows] = await db.query(
+    `
+    SELECT
+      id,
+      name,
+      profile_image
+    FROM users
+    WHERE id = ?
+    LIMIT 1
+    `,
+    [Number(userId)]
+  );
+
+  return rows[0] || null;
+}
+
+// ─────────────────────────────────────────────────────────────
+// MAIN SOCKET HANDLER
+// ─────────────────────────────────────────────────────────────
+
 module.exports = (io, socket) => {
-  /**
-   * =========================================
-   * REGISTER USER / ASTROLOGER
-   * =========================================
-   */
-  socket.on("register", async (userId) => {
-    connectedUsers[userId] = socket.id;
-    console.log("USER REGISTERED =>", userId, socket.id);
-    await setAstrologerOnlineStatus(io, userId, 1);
+
+  // ─────────────────────────────────────────
+  // REGISTER
+  // User aur Astrologer dono register karte hain
+  // ─────────────────────────────────────────
+  socket.on("register", async (data) => {
+    try {
+      const { user_id, role } = data;
+      console.log("REGISTER EVENT =>", data);
+
+      connectedUsers[user_id] = socket.id;
+
+      // Sirf astrologer ka is_online DB mein update hoga
+      // User ka is_online koi concept nahi — sirf socket track hoga
+      if (role === "astrologer") {
+        await setAstrologerOnlineStatus(io, user_id, 1); // online
+      }
+    } catch (err) {
+      console.error("REGISTER ERROR =>", err);
+    }
   });
 
-  /**
-   * =========================================
-   * CALL INITIATE
-   * =========================================
-   */
+  // ─────────────────────────────────────────
+  // CALL INITIATE
+  // User → Server → Astrologer
+  // ─────────────────────────────────────────
   socket.on("call-initiate", async (data) => {
     try {
       console.log("CALL INITIATE EVENT =>", data);
 
-      const { user_id, astrologer_id, call_type, user_details, astrologer_details } = data;
+      const { user_id, astrologer_id, call_type, } = data;
 
+      // ── 1. Required fields ──
       if (!user_id || !astrologer_id || !call_type) {
         return socket.emit("call-failed", {
           success: false,
-          message: "Missing required fields"
+          message: "Missing required fields",
         });
       }
 
+      // ── 2. Duplicate call guard ──
+      const existingCall = await getUserActiveCall(user_id);
+      if (existingCall) {
+        return socket.emit("call-failed", {
+          success: false,
+          message: "You already have an active call in progress",
+        });
+      }
+
+      // ── 3. Astrologer fetch ──
       const astrologer = await getAstrologerById(astrologer_id);
       if (!astrologer) {
         return socket.emit("call-failed", {
           success: false,
-          message: "Astrologer not found"
+          message: "Astrologer not found",
         });
       }
+      const user = await getUserById(user_id);
 
-      if (!astrologer.chat_status) {
+if (!user) {
+  return socket.emit("call-failed", {
+    success: false,
+    message: "User not found",
+  });
+}
+
+      // ── 4. is_online state check ──
+      // Number() cast — MySQL se kabhi string aata hai kabhi int
+      const onlineStatus = Number(astrologer.is_online);
+
+      if (onlineStatus === 0) {
         return socket.emit("call-failed", {
           success: false,
-          message: "Astrologer status not available"
+          message: "Astrologer is offline",
         });
       }
 
-      if (astrologer.chat_status === "busy") {
+      if (onlineStatus === 2) {
         return socket.emit("call-failed", {
           success: false,
-          message: "Astrologer is busy"
+          message: "Astrologer is busy in another call",
         });
       }
 
-      const callCharge = call_type === "video" ? Number(astrologer.video_charge || 0) : Number(astrologer.audio_charge || 0);
+      // onlineStatus === 1 → proceed
+
+      // ── 5. Wallet balance check ──
+      const callCharge =
+        call_type === "video"
+          ? Number(astrologer.video_charge || 0)
+          : Number(astrologer.audio_charge || 0);
+
       const walletBalance = await getWalletBalance(user_id);
 
       if (walletBalance < callCharge) {
         return socket.emit("call-failed", {
           success: false,
-          message: `Insufficient wallet balance. Minimum required is ₹${callCharge}`
+          message: `Insufficient wallet balance. Minimum required is ₹${callCharge}`,
         });
       }
 
+      // ── 6. Socket online check ──
       const astrologerSocketId = connectedUsers[astrologer_id];
+      console.log("ASTROLOGER SOCKET ID =>", astrologerSocketId);
+
       if (!astrologerSocketId) {
+        // Socket nahi mila — DB mein bhi offline kar do (sync fix)
+        await setAstrologerOnlineStatus(io, astrologer_id, 0);
         return socket.emit("call-failed", {
           success: false,
-          message: "Astrologer is offline"
+          message: "Astrologer is offline",
         });
       }
 
+      // ── 7. Agora token generate ──
       const tokenData = await callService.generateAgoraToken({
         user_id,
         agent_id: astrologer_id,
-        call_type
+        call_type,
       });
 
-      await setAstrologerChatStatus(io, astrologer_id, "busy");
-      await setAstrologerOnlineStatus(io, astrologer_id, 1);
+      // ── 8. Astrologer busy mark karo (is_online = 2) ──
+      await setAstrologerOnlineStatus(io, astrologer_id, 2);
 
-      io.to(astrologerSocketId).emit("call-initiated", {
-        success: true,
-        message: "Incoming call",
-        data: {
-          call_type,
-          channel_name: tokenData.channel_name,
-          appId: tokenData.appId,
-          token: tokenData.token,
-          uid: tokenData.uid,
-          call_id: tokenData.call_id,
-          user_details,
-          astrologer_details,
-          user_id,
-          astrologer_id
-        }
-      });
+      // ── 9. Astrologer ko incoming call emit ──
+      // io.to(astrologerSocketId).emit("call-initiated", {
+      //   success: true,
+      //   message: "Incoming call",
+      //   data: {
+      //     call_type,
+      //     channel_name: tokenData.channel_name,
+      //     appId: tokenData.appId,
+      //     token: tokenData.token,
+      //     uid: tokenData.uid,
+      //     call_id: tokenData.call_id,
+      //     user_details,
+      //     astrologer_details,
+      //     user_id,
+      //     astrologer_id,
+      //   },
+      // });
+          io.to(astrologerSocketId).emit("call-initiated", {
+  success: true,
+  message: "Incoming call",
+  data: {
+    call_type,
+    channel_name: tokenData.channel_name,
+    appId: tokenData.appId,
+    token: tokenData.token,
+    uid: tokenData.uid,
+    call_id: tokenData.call_id,
 
+    user_details: {
+      id: user.id,
+      name: user.name,
+      profile_image: user.profile_image,
+    },
+
+    astrologer_details: {
+      id: astrologer.id,
+      name: astrologer.name,
+    },
+
+    user_id,
+    astrologer_id,
+  },
+});
+      // ── 10. DB mein ringing status ──
       await updateCallHistoryStatus(tokenData.call_id, "ringing");
 
+      // ── 11. User ko confirm ──
       socket.emit("call-requested", {
         success: true,
         message: "Call request sent",
         data: {
           ...tokenData,
           astrologer_id,
-          call_type
-        }
+          call_type,
+        },
       });
+
+      // ── 12. 45 second auto-timeout ──
+      // Agar astrologer ne accept/decline nahi kiya
+      const timeoutRef = setTimeout(async () => {
+        try {
+          const [rows] = await db.query(
+            `SELECT status FROM call_history WHERE id = ? LIMIT 1`,
+            [Number(tokenData.call_id)]
+          );
+
+          if (rows[0]?.status === "ringing") {
+            await updateCallHistoryStatus(tokenData.call_id, "missed");
+
+            // Astrologer wapas online (is_online = 1)
+            await setAstrologerOnlineStatus(io, astrologer_id, 1);
+
+            // User ko timeout notify
+            const userSocketId = connectedUsers[user_id];
+            if (userSocketId) {
+              io.to(userSocketId).emit("call-timeout", {
+                success: false,
+                message: "Astrologer did not respond. Please try again.",
+                data: { call_id: tokenData.call_id },
+              });
+            }
+
+            // Astrologer ko cancel notify
+            if (astrologerSocketId) {
+              io.to(astrologerSocketId).emit("call-cancelled", {
+                success: false,
+                message: "Call timed out — no response",
+                data: { call_id: tokenData.call_id },
+              });
+            }
+          }
+
+          delete activeCallTimeouts[tokenData.call_id];
+        } catch (err) {
+          console.error("CALL TIMEOUT ERROR =>", err);
+        }
+      }, 45000);
+
+      activeCallTimeouts[tokenData.call_id] = timeoutRef;
+
     } catch (error) {
-      console.log("CALL SOCKET ERROR =>", error);
+      console.error("CALL INITIATE ERROR =>", error);
       socket.emit("call-failed", {
         success: false,
-        message: error.message || "Unable to initiate call"
+        message: error.message || "Unable to initiate call",
       });
     }
   });
 
+  // ─────────────────────────────────────────
+  // CALL ACCEPTED
+  // Astrologer → Server → User
+  // ─────────────────────────────────────────
   socket.on("call-accepted", async (data) => {
     try {
-      const { call_id, user_id, astrologer_id, channel_name, call_type } = data;
+      const { call_id, user_id, astrologer_id, call_type } = data;
 
+      // Timeout clear — astrologer ne respond kar diya
+      if (activeCallTimeouts[call_id]) {
+        clearTimeout(activeCallTimeouts[call_id]);
+        delete activeCallTimeouts[call_id];
+      }
+
+      // User ko notify
       const userSocketId = connectedUsers[user_id];
       if (userSocketId) {
         io.to(userSocketId).emit("call-accepted", {
           success: true,
           message: "Call accepted",
-          data
+          data,
         });
       }
 
+      // DB: answered
       await updateCallHistoryStatus(call_id, "answered");
-      await setAstrologerChatStatus(io, astrologer_id, "busy");
+
+      // Astrologer busy rakho (is_online = 2)
+      await setAstrologerOnlineStatus(io, astrologer_id, 2);
+
+      // ── Wallet deduction — call start pe ──
+      const astrologer = await getAstrologerById(astrologer_id);
+      if (astrologer) {
+        const callCharge =
+          call_type === "video"
+            ? Number(astrologer.video_charge || 0)
+            : Number(astrologer.audio_charge || 0);
+
+        if (callCharge > 0) {
+          const deducted = await deductWalletBalance(user_id, callCharge);
+
+          if (userSocketId) {
+            io.to(userSocketId).emit("wallet-deducted", {
+              success: deducted,
+              message: deducted
+                ? `₹${callCharge} deducted for ${call_type} call`
+                : "Wallet deduction failed — insufficient balance",
+              data: { amount: callCharge, call_id },
+            });
+          }
+
+          // Deduction fail ho — call end karo
+          if (!deducted) {
+            await updateCallHistoryStatus(call_id, "hangup");
+            await setAstrologerOnlineStatus(io, astrologer_id, 1);
+
+            const astrologerSocketId = connectedUsers[astrologer_id];
+            if (astrologerSocketId) {
+              io.to(astrologerSocketId).emit("call-ended", {
+                success: false,
+                message: "User wallet insufficient. Call ended.",
+                data: { call_id },
+              });
+            }
+            return;
+          }
+        }
+      }
+
     } catch (error) {
-      console.log("CALL ACCEPT ERROR =>", error);
+      console.error("CALL ACCEPT ERROR =>", error);
     }
   });
 
+  // ─────────────────────────────────────────
+  // CALL DECLINED
+  // Astrologer → Server → User
+  // ─────────────────────────────────────────
   socket.on("call-declined", async (data) => {
     try {
       const { call_id, user_id, astrologer_id } = data;
-      const userSocketId = connectedUsers[user_id];
 
+      // Timeout clear
+      if (activeCallTimeouts[call_id]) {
+        clearTimeout(activeCallTimeouts[call_id]);
+        delete activeCallTimeouts[call_id];
+      }
+
+      // User ko notify
+      const userSocketId = connectedUsers[user_id];
       if (userSocketId) {
         io.to(userSocketId).emit("call-declined", {
           success: false,
           message: "Astrologer declined the call",
-          data
+          data,
         });
       }
 
+      // DB: decline
       await updateCallHistoryStatus(call_id, "decline");
-      await setAstrologerChatStatus(io, astrologer_id, "online");
+
+      // Astrologer wapas online (is_online = 1)
+      await setAstrologerOnlineStatus(io, astrologer_id, 1);
+
     } catch (error) {
-      console.log("CALL DECLINE ERROR =>", error);
+      console.error("CALL DECLINE ERROR =>", error);
     }
   });
 
+  // ─────────────────────────────────────────
+  // CALL ENDED
+  // User ya astrologer — koi bhi end kar sakta hai
+  // ─────────────────────────────────────────
   socket.on("call-ended", async (data) => {
     try {
       const { call_id, user_id, astrologer_id } = data;
-      const otherSocketId = connectedUsers[user_id] || connectedUsers[astrologer_id];
 
-      if (otherSocketId && otherSocketId !== socket.id) {
-        io.to(otherSocketId).emit("call-ended", {
+      // Timeout clear
+      if (activeCallTimeouts[call_id]) {
+        clearTimeout(activeCallTimeouts[call_id]);
+        delete activeCallTimeouts[call_id];
+      }
+
+      // DONO sides ko emit karo (jo bhi end kare, doosre ko bhi jaaye)
+      const userSocketId = connectedUsers[user_id];
+      const astrologerSocketId = connectedUsers[astrologer_id];
+
+      if (userSocketId && userSocketId !== socket.id) {
+        io.to(userSocketId).emit("call-ended", {
           success: true,
           message: "Call ended",
-          data
+          data,
         });
       }
 
-      if (astrologer_id) {
-        await setAstrologerChatStatus(io, astrologer_id, "online");
+      if (astrologerSocketId && astrologerSocketId !== socket.id) {
+        io.to(astrologerSocketId).emit("call-ended", {
+          success: true,
+          message: "Call ended",
+          data,
+        });
       }
 
+      // DB: hangup
       await updateCallHistoryStatus(call_id, "hangup");
+
+      // Astrologer wapas online (is_online = 1)
+      if (astrologer_id) {
+        await setAstrologerOnlineStatus(io, astrologer_id, 1);
+      }
+
     } catch (error) {
-      console.log("CALL END ERROR =>", error);
+      console.error("CALL END ERROR =>", error);
     }
   });
 
-  /**
-   * =========================================
-   * DISCONNECT HANDLER FOR CALLS
-   * =========================================
-   */
-  const handleCallDisconnect = async () => {
-    for (const userId in connectedUsers) {
-      if (connectedUsers[userId] === socket.id) {
-        delete connectedUsers[userId];
-        await setAstrologerOnlineStatus(io, Number(userId), 0);
+  // ─────────────────────────────────────────
+  // CALL CANCELLED
+  // User ne ringing ke dauran cancel kiya
+  // ─────────────────────────────────────────
+  socket.on("call-cancelled", async (data) => {
+    try {
+      const { call_id, user_id, astrologer_id } = data;
+
+      // Timeout clear
+      if (activeCallTimeouts[call_id]) {
+        clearTimeout(activeCallTimeouts[call_id]);
+        delete activeCallTimeouts[call_id];
       }
+
+      // Astrologer ko cancel notify
+      const astrologerSocketId = connectedUsers[astrologer_id];
+      if (astrologerSocketId) {
+        io.to(astrologerSocketId).emit("call-cancelled", {
+          success: false,
+          message: "User cancelled the call",
+          data,
+        });
+      }
+
+      // DB: cancelled
+      await updateCallHistoryStatus(call_id, "cancelled");
+
+      // Astrologer wapas online (is_online = 1)
+      await setAstrologerOnlineStatus(io, astrologer_id, 1);
+
+    } catch (error) {
+      console.error("CALL CANCEL ERROR =>", error);
+    }
+  });
+
+  // ─────────────────────────────────────────
+  // DISCONNECT HANDLER
+  // Socket drop hone par full cleanup
+  // ─────────────────────────────────────────
+  const handleCallDisconnect = async () => {
+    try {
+      for (const userId in connectedUsers) {
+        if (connectedUsers[userId] === socket.id) {
+          delete connectedUsers[userId];
+
+          // Astrologer offline mark karo (is_online = 0)
+          await setAstrologerOnlineStatus(io, Number(userId), 0);
+
+          // Agar ye user/astrologer active call mein tha
+          const [activeCalls] = await db.query(
+            `SELECT id, user_id, astrologer_id
+             FROM call_history
+             WHERE (user_id = ? OR astrologer_id = ?)
+             AND status IN ('ringing', 'answered')
+             LIMIT 1`,
+            [Number(userId), Number(userId)]
+          );
+
+          if (activeCalls.length > 0) {
+            const call = activeCalls[0];
+
+            // Call disconnect mark karo
+            await updateCallHistoryStatus(call.id, "disconnected");
+
+            // Doosri party ko notify karo
+            const otherUserId =
+              Number(userId) === Number(call.user_id)
+                ? call.astrologer_id
+                : call.user_id;
+
+            const otherSocketId = connectedUsers[otherUserId];
+            if (otherSocketId) {
+              io.to(otherSocketId).emit("call-ended", {
+                success: false,
+                message: "Other party disconnected",
+                data: { call_id: call.id },
+              });
+            }
+
+            // Astrologer wapas online karo
+            if (call.astrologer_id) {
+              await setAstrologerOnlineStatus(io, call.astrologer_id, 1);
+            }
+
+            // Active timeout clear karo
+            if (activeCallTimeouts[call.id]) {
+              clearTimeout(activeCallTimeouts[call.id]);
+              delete activeCallTimeouts[call.id];
+            }
+          }
+
+          break; // userId mil gaya, loop band karo
+        }
+      }
+    } catch (err) {
+      console.error("DISCONNECT CLEANUP ERROR =>", err);
     }
   };
 
