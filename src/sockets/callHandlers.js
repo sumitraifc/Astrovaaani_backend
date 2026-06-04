@@ -65,21 +65,23 @@ async function updateCallHistoryStatus(callId, status) {
     Number(callId),
   ]);
 }
-async function updateCallHistoryStatuss(callId, status) {
-  await db.query(
-  `UPDATE call_history
-   SET disconnect_reason = ?
-   WHERE id = ?`,
-  [
-    ended_by === "astrologer"
-      ? "astrologer_ended"
-      : "user_ended",
-    call_id,
-  ]
-);
- 
-}
 
+async function updateCallHistoryStatuss(
+  callId,
+  status,
+  disconnect_reason
+) {
+  await db.query(
+    `UPDATE call_history
+     SET status = ?, disconnect_reason = ?
+     WHERE id = ?`,
+    [
+      status,
+      disconnect_reason,
+      Number(callId),
+    ]
+  );
+}
 
 
 
@@ -572,7 +574,14 @@ module.exports = (io, socket) => {
       }
 
       // DB: hangup
-      await updateCallHistoryStatuss(call_id, "hangup");
+      // await updateCallHistoryStatuss(call_id, "hangup");
+      await updateCallHistoryStatuss(
+  call_id,
+  "hangup",
+  ended_by === "astrologer"
+    ? "astrologer_ended"
+    : "user_ended"
+);
 
       // Astrologer wapas online (is_online = 1)
       if (astrologer_id) {
