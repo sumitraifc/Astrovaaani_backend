@@ -531,6 +531,127 @@ socket.on("get_chat_list", async (data, callback) => {
     });
   }
 });
+
+socket.on("get_chat_history", async (data, callback) => {
+  try {
+
+    console.log("\n=================================");
+    console.log("🔥 GET CHAT HISTORY EVENT HIT");
+    console.log("Socket ID:", socket.id);
+    console.log("Incoming Data:", data);
+
+    const { conversation_id } = data;
+
+    console.log("conversation_id:", conversation_id);
+
+    if (!conversation_id) {
+      return callback?.({
+        success: false,
+        message: "conversation_id required"
+      });
+    }
+
+    /**
+     * 1. GET CONVERSATION INFO
+     */
+    const [conversationRows] = await db.query(
+      `
+      SELECT
+        cc.conversation_id,
+        cc.status,
+        cc.user_id,
+        cc.astrologer_id,
+        cc.last_message,
+        cc.last_message_at,
+
+        u.name AS user_name,
+        u.profile_image AS user_profile_image,
+
+        a.name AS astrologer_name,
+        a.profile_image AS astrologer_profile_image
+
+      FROM chat_conversations cc
+      JOIN users u ON u.id = cc.user_id
+      JOIN astrologers a ON a.id = cc.astrologer_id
+      WHERE cc.conversation_id = ?
+      LIMIT 1
+      `,
+      [conversation_id]
+    );
+
+    if (conversationRows.length === 0) {
+      console.log("❌ Conversation not found");
+
+      return callback?.({
+        success: false,
+        message: "Conversation not found"
+      });
+    }
+
+    const conversation = conversationRows[0];
+
+    console.log("✅ Conversation Found:", conversation.conversation_id);
+
+    /**
+     * 2. GET FULL CHAT HISTORY
+     */
+    const [messages] = await db.query(
+      `
+      SELECT
+        id,
+        uuid,
+        conversation_id,
+        sender_type,
+        sender_id,
+        message,
+        message_type,
+        file_url,
+        is_read,
+        sent_at
+      FROM chat_messages
+      WHERE conversation_id = ?
+        AND is_deleted = 0
+      ORDER BY sent_at ASC
+      `,
+      [conversation_id]
+    );
+
+    console.log("✅ TOTAL MESSAGES:", messages.length);
+
+    if (messages.length > 0) {
+      console.log("✅ FIRST MESSAGE:");
+      console.log(JSON.stringify(messages[0], null, 2));
+    } else {
+      console.log("❌ NO MESSAGES FOUND");
+    }
+
+    console.log("=================================\n");
+
+    /**
+     * 3. RESPONSE
+     */
+    callback?.({
+      success: true,
+      data: {
+        conversation,
+        messages
+      }
+    });
+
+  } catch (err) {
+
+    console.log("\n=================================");
+    console.log("❌ GET CHAT HISTORY ERROR");
+    console.log("Message:", err.message);
+    console.log("Stack:", err.stack);
+    console.log("=================================\n");
+
+    callback?.({
+      success: false,
+      message: err.message
+    });
+  }
+});
   /**
    * =========================================
    * TYPING
