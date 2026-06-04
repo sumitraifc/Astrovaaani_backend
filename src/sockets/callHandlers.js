@@ -295,7 +295,7 @@ module.exports = (io, socket) => {
       // ── 12. User ko confirm ──
       socket.emit("call-requested", {
         success: true,
-        message: "Call request sent",
+        message: "Call request sentt",
         data: {
           ...tokenData,
           astrologer_id,
@@ -310,37 +310,37 @@ module.exports = (io, socket) => {
       audio_charge: astrologer.audio_charge,
       video_charge: astrologer.video_charge,
         },
-       
+     
       });
+  
+//       socket.emit("call-requested", {
+//   success: true,
+//   message: "Call request sent",
+//   data: {
+//     // Agora / call token details
+//     appId: tokenData.appId,
+//     channel_name: tokenData.channel_name,
+//     token: tokenData.token,
+//     uid: tokenData.uid,
+//     call_id: tokenData.call_id,
 
-      socket.emit("call-requested", {
-  success: true,
-  message: "Call request sent",
-  data: {
-    // Agora / call token details
-    appId: tokenData.appId,
-    channel_name: tokenData.channel_name,
-    token: tokenData.token,
-    uid: tokenData.uid,
-    call_id: tokenData.call_id,
+//     user_id,
+//     astrologer_id,
 
-    user_id,
-    astrologer_id,
-
-    // 👇 FULL ASTROLOGER DETAILS (UI ke liye)
-    astrologer_details: {
-      id: astrologer.id,
-      name: astrologer.name,
-      profile_image: astrologer.profile_image
-        ? `${process.env.BASE_URL}/uploads/${astrologer.profile_image}`
-        : null,
-      expertise: astrologer.expertise,
-      is_online: astrologer.is_online,
-      audio_charge: astrologer.audio_charge,
-      video_charge: astrologer.video_charge,
-    },
-  },
-});
+//     // 👇 FULL ASTROLOGER DETAILS (UI ke liye)
+//     astrologer_details: {
+//       id: astrologer.id,
+//       name: astrologer.name,
+//       profile_image: astrologer.profile_image
+//         ? `${process.env.BASE_URL}/uploads/${astrologer.profile_image}`
+//         : null,
+//       expertise: astrologer.expertise,
+//       is_online: astrologer.is_online,
+//       audio_charge: astrologer.audio_charge,
+//       video_charge: astrologer.video_charge,
+//     },
+//   },
+// });
 
       // ── 13. 45 second auto-timeout ──
       // Agar astrologer ne accept/decline nahi kiya
