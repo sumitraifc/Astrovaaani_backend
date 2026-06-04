@@ -429,6 +429,7 @@ module.exports = (io, socket) => {
         });
       }
 
+
       // DB: answered (dono connected)
       await updateCallHistoryStatus(call_id, "answered");
 
@@ -545,6 +546,7 @@ module.exports = (io, socket) => {
   // User ya astrologer — koi bhi end kar sakta hai
   // ─────────────────────────────────────────
   socket.on("call-ended", async (data) => {
+     console.log("CALL ENDED DATA =>", data);
     try {
       const { call_id, user_id, astrologer_id ,ended_by} = data;
 
