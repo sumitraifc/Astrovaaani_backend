@@ -342,14 +342,102 @@ socket.on("join_room", async (data, callback) => {
  * CHAT LIST (USER / ASTROLOGER)
  * =========================================
  */
+
+// socket.on("get_chat_list", async (data, callback) => {
+//   try {
+//     const { user_id, astrologer_id, sender_type } = data;
+
+//     let rows = [];
+
+//     if (sender_type === "user") {
+//       [rows] = await db.query(`
+//         SELECT
+//           cc.conversation_id,
+//           cc.status,
+//           cc.last_message,
+//           cc.last_message_at,
+
+//           a.id AS astrologer_id,
+//           a.name,
+//           a.profile_image,
+
+//           (
+//             SELECT COUNT(*)
+//             FROM chat_messages cm
+//             WHERE cm.conversation_id = cc.conversation_id
+//               AND cm.sender_type = 'astrologer'
+//               AND cm.is_read = 0
+//           ) AS unread_count
+
+//         FROM chat_conversations cc
+//         JOIN astrologers a ON a.id = cc.astrologer_id
+//         WHERE cc.user_id = ?
+//         ORDER BY cc.last_message_at DESC
+//       `, [user_id]);
+//     } else {
+//       [rows] = await db.query(`
+//         SELECT
+//           cc.conversation_id,
+//           cc.status,
+//           cc.last_message,
+//           cc.last_message_at,
+
+//           u.id AS user_id,
+//           u.name,
+//           u.profile_image,
+
+//           (
+//             SELECT COUNT(*)
+//             FROM chat_messages cm
+//             WHERE cm.conversation_id = cc.conversation_id
+//               AND cm.sender_type = 'user'
+//               AND cm.is_read = 0
+//           ) AS unread_count
+
+//         FROM chat_conversations cc
+//         JOIN users u ON u.id = cc.user_id
+//         WHERE cc.astrologer_id = ?
+//         ORDER BY cc.last_message_at DESC
+//       `, [astrologer_id]);
+//     }
+
+//     callback?.({
+//       success: true,
+//       data: rows
+//     });
+
+//   } catch (err) {
+//     console.log("Chat List Error:", err.message);
+
+//     callback?.({
+//       success: false,
+//       message: err.message
+//     });
+//   }
+// });
+
+
 socket.on("get_chat_list", async (data, callback) => {
   try {
+
+    console.log("\n=================================");
+    console.log("🔥 GET CHAT LIST EVENT HIT");
+    console.log("Socket ID:", socket.id);
+    console.log("Incoming Data:", data);
+
     const { user_id, astrologer_id, sender_type } = data;
+
+    console.log("sender_type:", sender_type);
+    console.log("user_id:", user_id);
+    console.log("astrologer_id:", astrologer_id);
 
     let rows = [];
 
     if (sender_type === "user") {
-      [rows] = await db.query(`
+
+      console.log("👉 USER CHAT LIST QUERY RUNNING");
+
+      const query = `
         SELECT
           cc.conversation_id,
           cc.status,
@@ -357,8 +445,8 @@ socket.on("get_chat_list", async (data, callback) => {
           cc.last_message_at,
 
           a.id AS astrologer_id,
-          a.name,
-          a.profile_image,
+          a.name AS astrologer_name,
+          a.profile_image AS astrologer_profile_image,
 
           (
             SELECT COUNT(*)
@@ -372,9 +460,17 @@ socket.on("get_chat_list", async (data, callback) => {
         JOIN astrologers a ON a.id = cc.astrologer_id
         WHERE cc.user_id = ?
         ORDER BY cc.last_message_at DESC
-      `, [user_id]);
+      `;
+
+      console.log("Query User ID:", user_id);
+
+      [rows] = await db.query(query, [user_id]);
+
     } else {
-      [rows] = await db.query(`
+
+      console.log("👉 ASTROLOGER CHAT LIST QUERY RUNNING");
+
+      const query = `
         SELECT
           cc.conversation_id,
           cc.status,
@@ -382,8 +478,8 @@ socket.on("get_chat_list", async (data, callback) => {
           cc.last_message_at,
 
           u.id AS user_id,
-          u.name,
-          u.profile_image,
+          u.name AS user_name,
+          u.profile_image AS user_profile_image,
 
           (
             SELECT COUNT(*)
@@ -397,8 +493,24 @@ socket.on("get_chat_list", async (data, callback) => {
         JOIN users u ON u.id = cc.user_id
         WHERE cc.astrologer_id = ?
         ORDER BY cc.last_message_at DESC
-      `, [astrologer_id]);
+      `;
+
+      console.log("Query Astrologer ID:", astrologer_id);
+
+      [rows] = await db.query(query, [astrologer_id]);
     }
+
+    console.log("=================================");
+    console.log("✅ TOTAL ROWS FOUND:", rows.length);
+
+    if (rows.length > 0) {
+      console.log("✅ FIRST ROW:");
+      console.log(JSON.stringify(rows[0], null, 2));
+    } else {
+      console.log("❌ NO CHAT FOUND");
+    }
+
+    console.log("=================================\n");
 
     callback?.({
       success: true,
@@ -406,7 +518,12 @@ socket.on("get_chat_list", async (data, callback) => {
     });
 
   } catch (err) {
-    console.log("Chat List Error:", err.message);
+
+    console.log("\n=================================");
+    console.log("❌ GET CHAT LIST ERROR");
+    console.log("Message:", err.message);
+    console.log("Stack:", err.stack);
+    console.log("=================================\n");
 
     callback?.({
       success: false,
@@ -414,7 +531,6 @@ socket.on("get_chat_list", async (data, callback) => {
     });
   }
 });
-
   /**
    * =========================================
    * TYPING

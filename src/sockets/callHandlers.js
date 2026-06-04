@@ -184,6 +184,12 @@ module.exports = (io, socket) => {
 
       // ── 3. Astrologer fetch ──
       const astrologer = await getAstrologerById(astrologer_id);
+      const perMinuteCharge =
+  call_type === "video"
+    ? Number(astrologer.video_charge || 0)
+    : Number(astrologer.audio_charge || 0);
+
+const commissionPercent = Number(astrologer.commission_percent || 0);
       if (!astrologer) {
         return socket.emit("call-failed", {
           success: false,
@@ -252,6 +258,8 @@ module.exports = (io, socket) => {
         user_id,
         agent_id: astrologer_id,
         call_type,
+        per_minute_charge: perMinuteCharge,
+  admin_commission_percent: commissionPercent,
       });
 
       // ── 8. DB mein initiate status ──
@@ -370,7 +378,7 @@ module.exports = (io, socket) => {
             const userSocketId = connectedUsers[user_id];
             if (userSocketId) {
               io.to(userSocketId).emit("call-timeout", {
-                success: false,
+                success: true,
                 message: "Astrologer did not respond. Please try again.",
                 data: { call_id: tokenData.call_id },
               });
@@ -379,7 +387,7 @@ module.exports = (io, socket) => {
             // Astrologer ko cancel notify
             if (astrologerSocketId) {
               io.to(astrologerSocketId).emit("call-cancelled", {
-                success: false,
+                success: true,
                 message: "Call timed out — no response",
                 data: { call_id: tokenData.call_id },
               });
@@ -470,7 +478,7 @@ module.exports = (io, socket) => {
             const astrologerSocketId = connectedUsers[astrologer_id];
             if (astrologerSocketId) {
               io.to(astrologerSocketId).emit("call-ended", {
-                success: false,
+                success: true,
                 message: "User wallet insufficient. Call ended.",
                 data: { call_id },
               });
@@ -549,7 +557,7 @@ module.exports = (io, socket) => {
      console.log("CALL ENDED DATA =>", data);
     try {
       const { call_id, user_id, astrologer_id ,ended_by} = data;
-
+        const endTime = Math.floor(Date.now() / 1000);
       // Timeout clear
       if (activeCallTimeouts[call_id]) {
         clearTimeout(activeCallTimeouts[call_id]);
@@ -581,6 +589,14 @@ module.exports = (io, socket) => {
   console.log("CURRENT SOCKET =>", socket.id);
       // DB: hangup
       // await updateCallHistoryStatuss(call_id, "hangup");
+      const [rows] = await db.query(
+  `SELECT start_time FROM call_history WHERE id = ?`,
+  [call_id]
+);
+
+const startTime = rows[0]?.start_time || 0;
+
+const duration = endTime - startTime;
       await updateCallHistoryStatuss(
   call_id,
   "hangup",
@@ -588,7 +604,12 @@ module.exports = (io, socket) => {
     ? "astrologer_ended"
     : "user_ended"
 );
-
+await db.query(
+  `UPDATE call_history 
+   SET end_time = ?, duration = ?
+   WHERE id = ?`,
+  [endTime, duration, call_id]
+);
       // Astrologer wapas online (is_online = 1)
       if (astrologer_id) {
         await setAstrologerOnlineStatus(io, astrologer_id, 1);
@@ -616,7 +637,7 @@ module.exports = (io, socket) => {
       const astrologerSocketId = connectedUsers[astrologer_id];
       if (astrologerSocketId) {
         io.to(astrologerSocketId).emit("call-cancelled", {
-          success: false,
+          success: true,
           message: "User cancelled the call",
           data,
         });
@@ -674,7 +695,7 @@ await updateCallStatus(
             const otherSocketId = connectedUsers[otherUserId];
             if (otherSocketId) {
               io.to(otherSocketId).emit("call-ended", {
-                success: false,
+                success: true,
                 message: "Other party disconnected",
                 data: { call_id: call.id },
               });
