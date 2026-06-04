@@ -268,8 +268,9 @@ module.exports = (io, socket) => {
           call_type,
           channel_name: tokenData.channel_name,
           appId: tokenData.appId,
-          token: tokenData.token,
-          uid: tokenData.uid,
+          token: tokenData.astrologer_token,
+          uid: tokenData.astrologer_uid,
+          // uid: tokenData.uid,
           call_id: tokenData.call_id,
 
           user_details: {
