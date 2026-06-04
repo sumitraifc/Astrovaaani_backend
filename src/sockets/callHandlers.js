@@ -575,7 +575,10 @@ module.exports = (io, socket) => {
           data,
         });
       }
-
+  console.log("CONNECTED USERS =>", connectedUsers);
+  console.log("USER SOCKET =>", userSocketId);
+  console.log("ASTRO SOCKET =>", astrologerSocketId);
+  console.log("CURRENT SOCKET =>", socket.id);
       // DB: hangup
       // await updateCallHistoryStatuss(call_id, "hangup");
       await updateCallHistoryStatuss(
