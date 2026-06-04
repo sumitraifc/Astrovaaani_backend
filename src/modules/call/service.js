@@ -1,107 +1,140 @@
 const {
-    RtcTokenBuilder,
-    RtcRole
-} = require('agora-access-token');
+  RtcTokenBuilder,
+  RtcRole,
+} = require("agora-access-token");
 
 const {
-    APP_ID,
-    APP_CERTIFICATE
-} = require('../../config/agora');
+  APP_ID,
+  APP_CERTIFICATE,
+} = require("../../config/agora");
 
-const repository = require('./repository');
+const repository = require("./repository");
 
 exports.generateAgoraToken = async (body) => {
-
-    console.log("=========== SERVICE HIT ===========");
+  try {
+    console.log("\n========================================");
+    console.log("🚀 GENERATE AGORA TOKEN SERVICE HIT");
+    console.log("========================================");
 
     if (!APP_ID || !APP_CERTIFICATE) {
-        throw new Error("Agora credentials (APP_ID or APP_CERTIFICATE) not configured in environment variables");
+      console.error("❌ Agora credentials missing");
+      throw new Error(
+        "Agora credentials (APP_ID or APP_CERTIFICATE) not configured"
+      );
     }
 
-    console.log("REQUEST BODY => ", body);
+    console.log("📥 REQUEST BODY =>", body);
 
     const {
-        user_id,
-        agent_id,
-        call_type
+      user_id,
+      agent_id,
+      call_type,
     } = body;
 
-    console.log("USER ID => ", user_id);
+    console.log("👤 USER ID =>", user_id);
+    console.log("🔮 AGENT ID =>", agent_id);
+    console.log("📞 CALL TYPE =>", call_type);
 
-    console.log("AGENT ID => ", agent_id);
+    // UNIQUE CHANNEL
+    const channel_name = `call_${user_id}_${agent_id}_${Date.now()}`;
 
-    console.log("CALL TYPE => ", call_type);
+    console.log("🏠 CHANNEL NAME =>", channel_name);
 
-    // UNIQUE CHANNEL NAME
-    const channel_name =
-        `room_${user_id}_${Date.now()}`;
+    // Separate UID for User & Astrologer
+    const userUid = Number(user_id);
+    const astrologerUid = Number(agent_id);
 
-    console.log("CHANNEL NAME => ", channel_name);
-
-    const uid = parseInt(user_id);
-
-    console.log("UID => ", uid);
+    console.log("👤 USER UID =>", userUid);
+    console.log("🔮 ASTROLOGER UID =>", astrologerUid);
 
     const role = RtcRole.PUBLISHER;
 
-    console.log("ROLE => ", role);
+    console.log("🎭 ROLE =>", role);
 
-    const expireTime = 3600;
+    const expireTime = 3600; // 1 hour
 
-    console.log("EXPIRE TIME => ", expireTime);
+    console.log("⏰ EXPIRE TIME =>", expireTime);
 
-    const currentTime =
-        Math.floor(Date.now() / 1000);
+    const currentTime = Math.floor(Date.now() / 1000);
 
-    console.log("CURRENT TIME => ", currentTime);
+    console.log("🕒 CURRENT TIME =>", currentTime);
 
     const privilegeExpiredTs =
-        currentTime + expireTime;
+      currentTime + expireTime;
 
     console.log(
-        "PRIVILEGE EXPIRE TS => ",
-        privilegeExpiredTs
+      "⌛ PRIVILEGE EXPIRE TS =>",
+      privilegeExpiredTs
     );
 
-    console.log("GENERATING TOKEN...");
+    console.log("🔑 GENERATING USER TOKEN...");
 
-    // GENERATE TOKEN
-    const token =
-        RtcTokenBuilder.buildTokenWithUid(
-            APP_ID,
-            APP_CERTIFICATE,
-            channel_name,
-            uid,
-            role,
-            privilegeExpiredTs
-        );
+    const userToken =
+      RtcTokenBuilder.buildTokenWithUid(
+        APP_ID,
+        APP_CERTIFICATE,
+        channel_name,
+        userUid,
+        role,
+        privilegeExpiredTs
+      );
 
-    console.log("TOKEN GENERATED SUCCESS");
+    console.log("✅ USER TOKEN GENERATED");
 
-    console.log("TOKEN => ", token);
+    console.log("🔑 GENERATING ASTROLOGER TOKEN...");
 
-    console.log("SAVING CALL HISTORY IN DB...");
+    const astrologerToken =
+      RtcTokenBuilder.buildTokenWithUid(
+        APP_ID,
+        APP_CERTIFICATE,
+        channel_name,
+        astrologerUid,
+        role,
+        privilegeExpiredTs
+      );
 
-    // SAVE DB
+    console.log("✅ ASTROLOGER TOKEN GENERATED");
+
+    console.log("💾 SAVING CALL HISTORY...");
+
     const result =
-        await repository.createCallHistory({
-            user_id,
-            agent_id,
-            channel_name,
-            call_type,
-            status: 'initiate',
-            start_time: currentTime
-        });
+      await repository.createCallHistory({
+        user_id,
+        agent_id,
+        channel_name,
+        call_type,
+        status: "initiate",
+        start_time: currentTime,
+      });
 
-    console.log("DB RESULT => ", result);
+    console.log("✅ CALL HISTORY SAVED");
+    console.log("📄 DB RESULT =>", result);
+    console.log("🆔 CALL ID =>", result.insertId);
 
-    console.log("CALL HISTORY SAVED SUCCESS");
+    console.log("========================================");
+    console.log("🎉 TOKEN GENERATION COMPLETED");
+    console.log("========================================\n");
 
     return {
-        token,
-        appId: APP_ID,
-        channel_name,
-        uid,
-        call_id: result.insertId
+      appId: APP_ID,
+
+      call_id: result.insertId,
+
+      channel_name,
+
+      // USER
+      user_uid: userUid,
+      user_token: userToken,
+
+      // ASTROLOGER
+      astrologer_uid: astrologerUid,
+      astrologer_token: astrologerToken,
     };
+  } catch (error) {
+    console.error("\n❌ AGORA TOKEN GENERATION ERROR");
+    console.error(error);
+    console.error("========================================\n");
+
+    throw error;
+  }
 };
