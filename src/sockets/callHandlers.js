@@ -24,6 +24,15 @@ const activeCallTimeouts = {};
 // DB HELPERS
 // ─────────────────────────────────────────────────────────────
 
+async function updateCallStatus(callId, status, disconnect_reason = null) {
+  await db.query(
+    `UPDATE call_history
+     SET status = ?, disconnect_reason = ?
+     WHERE id = ?`,
+    [status, disconnect_reason, Number(callId)]
+  );
+}
+
 async function getWalletBalance(userId) {
   const [rows] = await db.query(
     `SELECT balance FROM wallet WHERE user_id = ? LIMIT 1`,
@@ -54,6 +63,24 @@ async function updateCallHistoryStatus(callId, status) {
     Number(callId),
   ]);
 }
+async function updateCallHistoryStatuss(callId, status) {
+  await db.query(
+  `UPDATE call_history
+   SET disconnect_reason = ?
+   WHERE id = ?`,
+  [
+    ended_by === "astrologer"
+      ? "astrologer_ended"
+      : "user_ended",
+    call_id,
+  ]
+);
+ 
+}
+
+
+
+
 
 /**
  * User ka koi active call already chal raha hai check karo
@@ -244,7 +271,10 @@ module.exports = (io, socket) => {
           user_details: {
             id: user.id,
             name: user.name,
-            profile_image: user.profile_image,
+            // profile_image: user.profile_image,
+            profile_image: user.profile_image
+  ? `${process.env.BASE_URL}/uploads/${user.profile_image}`
+  : null,
           },
 
           astrologer_details: {
@@ -282,7 +312,12 @@ module.exports = (io, socket) => {
 
           if (rows[0]?.status === "ringing") {
             // DB: unanswered (45s mein koi response nahi aaya)
-            await updateCallHistoryStatus(tokenData.call_id, "unanswered");
+            // await updateCallHistoryStatus(tokenData.call_id, "unanswered");
+            await updateCallStatus(
+  tokenData.call_id,
+  "unanswered",
+  "timeout"
+);
 
             // Astrologer wapas online (is_online = 1)
             await setAstrologerOnlineStatus(io, astrologer_id, 1);
@@ -379,7 +414,12 @@ module.exports = (io, socket) => {
 
           // Deduction fail ho — call end karo
           if (!deducted) {
-            await updateCallHistoryStatus(call_id, "hangup");
+            // await updateCallHistoryStatus(call_id, "hangup");
+            await updateCallStatus(
+  call_id,
+  "hangup",
+  "insufficient_balance"
+);
             await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
             const astrologerSocketId = connectedUsers[astrologer_id];
@@ -403,35 +443,58 @@ module.exports = (io, socket) => {
   // CALL DECLINED
   // Astrologer → Server → User
   // ─────────────────────────────────────────
-  socket.on("call-declined", async (data) => {
-    try {
-      const { call_id, user_id, astrologer_id } = data;
+  socket.on("call-declined", async (data, callback) => {
+  try {
+    const { call_id, user_id, astrologer_id } = data;
 
-      // Timeout clear
-      if (activeCallTimeouts[call_id]) {
-        clearTimeout(activeCallTimeouts[call_id]);
-        delete activeCallTimeouts[call_id];
-      }
-
-      // User ko notify
-      const userSocketId = connectedUsers[user_id];
-      if (userSocketId) {
-        io.to(userSocketId).emit("call-declined", {
-          success: false,
-          message: "Astrologer declined the call",
-          data,
-        });
-      }
-
-      // DB: decline
-      await updateCallHistoryStatus(call_id, "decline");
-
-      // Astrologer wapas online (is_online = 1)
-      await setAstrologerOnlineStatus(io, astrologer_id, 1);
-    } catch (error) {
-      console.error("CALL DECLINE ERROR =>", error);
+    // Timeout clear
+    if (activeCallTimeouts[call_id]) {
+      clearTimeout(activeCallTimeouts[call_id]);
+      delete activeCallTimeouts[call_id];
     }
-  });
+
+    // DB update
+    // await updateCallHistoryStatus(call_id, "decline");
+    await updateCallStatus(
+  call_id,
+  "decline",
+  "astrologer_declined"
+);
+
+    // User notify
+    const userSocketId = connectedUsers[user_id];
+    if (userSocketId) {
+      io.to(userSocketId).emit("call-declined", {
+        success: true,
+        message: "Astrologer declined the call",
+        call_id,
+      });
+    }
+
+    // Astrologer online again
+    await setAstrologerOnlineStatus(io, astrologer_id, 1);
+
+    // ACK to astrologer
+    if (callback) {
+      callback({
+        success: true,
+        message: "Call declined successfully",
+        call_id,
+      });
+    }
+
+  } catch (error) {
+    console.error("CALL DECLINE ERROR =>", error);
+
+    if (callback) {
+      callback({
+        success: false,
+        message: error.message || "Failed to decline call",
+      });
+    }
+  }
+});
+
 
   // ─────────────────────────────────────────
   // CALL ENDED
@@ -439,7 +502,7 @@ module.exports = (io, socket) => {
   // ─────────────────────────────────────────
   socket.on("call-ended", async (data) => {
     try {
-      const { call_id, user_id, astrologer_id } = data;
+      const { call_id, user_id, astrologer_id ,ended_by} = data;
 
       // Timeout clear
       if (activeCallTimeouts[call_id]) {
@@ -468,7 +531,7 @@ module.exports = (io, socket) => {
       }
 
       // DB: hangup
-      await updateCallHistoryStatus(call_id, "hangup");
+      await updateCallHistoryStatuss(call_id, "hangup");
 
       // Astrologer wapas online (is_online = 1)
       if (astrologer_id) {
@@ -504,8 +567,12 @@ module.exports = (io, socket) => {
       }
 
       // DB: unanswered (user ne khud cancel kiya)
-      await updateCallHistoryStatus(call_id, "unanswered");
-
+      // await updateCallHistoryStatus(call_id, "unanswered");
+await updateCallStatus(
+  call_id,
+  "unanswered",
+  "user_cancelled"
+);
       // Astrologer wapas online (is_online = 1)
       await setAstrologerOnlineStatus(io, astrologer_id, 1);
     } catch (error) {
