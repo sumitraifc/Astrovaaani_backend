@@ -265,6 +265,35 @@ const commissionPercent = Number(astrologer.commission_percent || 0);
       // ── 8. DB mein initiate status ──
       await updateCallHistoryStatus(tokenData.call_id, "initiate");
 
+        // ── 8.5. Order create karo ──
+const orderId = "CALL" + Date.now();
+await db.query(
+  `
+  INSERT INTO orders
+  (
+    order_id,
+    conversation_id,
+    user_id,
+    astrologer_id,
+    astrologer_name,
+    consultation_type,
+    price,
+    status,
+    start_time
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+  `,
+  [
+    orderId,
+    String(tokenData.call_id),   // call_id ko conversation_id ki jagah use karo
+    user_id,
+    astrologer_id,
+    astrologer.name,
+    call_type,                   // "audio" ya "video"
+    perMinuteCharge,
+    "pending"
+  ]
+);
       // ── 9. Astrologer busy mark karo (is_online = 2) ──
       await setAstrologerOnlineStatus(io, astrologer_id, 2);
 
@@ -370,7 +399,16 @@ const commissionPercent = Number(astrologer.commission_percent || 0);
   "unanswered",
   "timeout"
 );
-
+await db.query(
+  `
+  UPDATE orders
+  SET
+    status = 'cancelled',
+    end_time = NOW()
+  WHERE conversation_id = ?
+  `,
+  [String(tokenData.call_id)]
+);
             // Astrologer wapas online (is_online = 1)
             await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
@@ -409,6 +447,9 @@ const commissionPercent = Number(astrologer.commission_percent || 0);
       });
     }
   });
+
+
+
 
   // ─────────────────────────────────────────
   // CALL ACCEPTED
@@ -473,6 +514,17 @@ const commissionPercent = Number(astrologer.commission_percent || 0);
   "hangup",
   "insufficient_balance"
 );
+
+await db.query(
+  `
+  UPDATE orders
+  SET
+    status = 'cancelled',
+    end_time = NOW()
+  WHERE conversation_id = ?
+  `,
+  [String(call_id)]
+);
             await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
             const astrologerSocketId = connectedUsers[astrologer_id];
@@ -512,6 +564,16 @@ const commissionPercent = Number(astrologer.commission_percent || 0);
   call_id,
   "decline",
   "astrologer_declined"
+);
+await db.query(
+  `
+  UPDATE orders
+  SET
+    status = 'cancelled',
+    end_time = NOW()
+  WHERE conversation_id = ?
+  `,
+  [String(call_id)]
 );
 
     // User notify
@@ -605,6 +667,17 @@ const duration = endTime - startTime;
     : "user_ended"
 );
 await db.query(
+  `
+  UPDATE orders
+  SET
+    status = 'completed',
+    end_time = NOW()
+  WHERE conversation_id = ?
+  `,
+  [String(call_id)]
+);
+
+await db.query(
   `UPDATE call_history 
    SET end_time = ?, duration = ?
    WHERE id = ?`,
@@ -650,6 +723,16 @@ await updateCallStatus(
   "unanswered",
   "user_cancelled"
 );
+await db.query(
+  `
+  UPDATE orders
+  SET
+    status = 'cancelled',
+    end_time = NOW()
+  WHERE conversation_id = ?
+  `,
+  [String(call_id)]
+);
       // Astrologer wapas online (is_online = 1)
       await setAstrologerOnlineStatus(io, astrologer_id, 1);
     } catch (error) {
@@ -685,7 +768,16 @@ await updateCallStatus(
 
             // DB: disconnect
             await updateCallHistoryStatus(call.id, "disconnect");
-
+               await db.query(
+  `
+  UPDATE orders
+  SET
+    status = 'completed',
+    end_time = NOW()
+  WHERE conversation_id = ?
+  `,
+  [String(call.id)]
+);
             // Doosri party ko notify karo
             const otherUserId =
               Number(userId) === Number(call.user_id)

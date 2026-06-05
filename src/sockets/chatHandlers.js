@@ -1002,6 +1002,13 @@ socket.on("get_chat_history", async (data, callback) => {
                   `,
                   [conversation_id]
                 );
+                 
+                await db.query(
+  `UPDATE orders
+   SET status = 'completed', end_time = NOW()
+   WHERE conversation_id = ?`,
+  [conversation_id]
+);  
 
                 /**
                  * ASTROLOGER ONLINE
@@ -1431,10 +1438,20 @@ if (sender_type === "astrologer" && astrologer_id) {
     1
   );
 
+
+
   console.log(
     `[DISCONNECT] User left, Astrologer ${astrologer_id} -> ONLINE`
   );
 }
+  io.to("room_" + conversation_id).emit("chat_ended", {
+  success: true,
+  ended_by: sender_type,
+  conversation_id,
+  message: sender_type === "astrologer"
+    ? "Astrologer disconnected"
+    : "User disconnected"
+});
       // if (sender_type === "astrologer" && astrologer_id) {
       //   await setAstrologerOnlineStatus(io, astrologer_id, 0);
       // } else if (astrologer_id) {
