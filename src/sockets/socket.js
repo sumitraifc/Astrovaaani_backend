@@ -2,7 +2,7 @@ const chatHandlers = require("./chatHandlers");
 const callHandlers = require("./callHandlers");
 const astrologerchatlistHandler = require("./astrologerchatlistHandler");
 const { astrologerSocket } = require("./astrologerHandler");
-
+const liveHandler = require("./liveHandler");
 /**
  * =========================================
  * GLOBAL SOCKET CONNECTION MANAGER
@@ -21,6 +21,8 @@ module.exports = (io) => {
     // Initialize astrologer list handlers
     const astrologerChatListHandle = astrologerchatlistHandler(io, socket);
     
+     const { handleLiveDisconnect } = liveHandler(io, socket);
+
     astrologerSocket(io, socket);
 
     /**
@@ -37,7 +39,8 @@ module.exports = (io) => {
 
         // Handle chat disconnections
         await chatHandle.handleChatDisconnect();
-
+          
+        await handleLiveDisconnect();
         // Handle astrologer chat list disconnections
         // await astrologerChatListHandle.handleAstrologerChatListDisconnect();
 
