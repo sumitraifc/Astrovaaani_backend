@@ -1196,110 +1196,151 @@ console.log(
    * LEAVE ROOM
    * =========================================
    */
-  socket.on("leave_room", async (data) => {
-    try {
-      const { conversation_id, sender_type } = data;
+ socket.on("leave_room", async (data) => {
+  try {
+    const { conversation_id, sender_type } = data;
 
-      socket.leave("room_" + conversation_id);
+    socket.leave("room_" + conversation_id);
 
-      /**
-       * OFFLINE STATUS
-       */
-      if (sender_type === "user") {
-        await db.query(
-          `
-          UPDATE chat_conversations
-          SET is_user_online = 0
-          WHERE conversation_id = ?
-          `,
-          [conversation_id]
-        );
-      } else {
-        await db.query(
-          `
-          UPDATE chat_conversations
-          SET is_astrologer_online = 0
-          WHERE conversation_id = ?
-          `,
-          [conversation_id]
-        );
-      }
-
-      /**
-       * STOP TIMER
-       */
-      if (activeTimers[conversation_id]) {
-        clearInterval(activeTimers[conversation_id]);
-        delete activeTimers[conversation_id];
-
-        await db.query(
-          `
-          UPDATE chat_conversations
-          SET is_timer_running = 0
-          WHERE conversation_id = ?
-          `,
-          [conversation_id]
-        );
-      }
-
-      /**
-       * END CHAT
-       */
+    /**
+     * OFFLINE STATUS
+     */
+    if (sender_type === "user") {
       await db.query(
         `
         UPDATE chat_conversations
-        SET
-          status = 'ended',
-          ended_at = NOW(),
-          updated_at = NOW()
+        SET is_user_online = 0
         WHERE conversation_id = ?
         `,
         [conversation_id]
       );
+    } else {
+      await db.query(
+        `
+        UPDATE chat_conversations
+        SET is_astrologer_online = 0
+        WHERE conversation_id = ?
+        `,
+        [conversation_id]
+      );
+    }
+
+    /**
+     * STOP TIMER
+     */
+    if (activeTimers[conversation_id]) {
+      clearInterval(activeTimers[conversation_id]);
+      delete activeTimers[conversation_id];
+
+      await db.query(
+        `
+        UPDATE chat_conversations
+        SET is_timer_running = 0
+        WHERE conversation_id = ?
+        `,
+        [conversation_id]
+      );
+    }
+
+    /**
+     * END CHAT
+     */
+    await db.query(
+      `
+      UPDATE chat_conversations
+      SET
+        status = 'ended',
+        ended_at = NOW(),
+        updated_at = NOW()
+      WHERE conversation_id = ?
+      `,
+      [conversation_id]
+    );
+
+    /**
+     * ✅ ORDER UPDATE
+     */
+    await db.query(
+      `
+      UPDATE orders
+      SET
+        status = 'completed',
+        end_time = NOW()
+      WHERE conversation_id = ?
+      `,
+      [conversation_id]
+    );
+
+    /**
+     * ASTROLOGER ONLINE
+     */
+    const [convRows] = await db.query(
+      `
+      SELECT astrologer_id, user_id
+      FROM chat_conversations
+      WHERE conversation_id = ?
+      LIMIT 1
+      `,
+      [conversation_id]
+    );
+
+    if (convRows.length) {
+      const astrologer_id = convRows[0].astrologer_id;
+      const user_id = convRows[0].user_id;
+
+      await setAstrologerOnlineStatus(io, astrologer_id, 1);
+
+      console.log(`[CHAT ENDED] Astrologer ${astrologer_id} -> ONLINE`);
 
       /**
-       * ASTROLOGER ONLINE
+       * ✅ AGAR USER NE LEAVE KIYA
+       * -> Astrologer ko notify karo
        */
-      const [convRows] = await db.query(
-        `
-        SELECT astrologer_id
-        FROM chat_conversations
-        WHERE conversation_id = ?
-        LIMIT 1
-        `,
-        [conversation_id]
-      );
+      if (sender_type === "user") {
+        io.to("room_" + conversation_id).emit("chat_ended", {
+          success: true,
+          ended_by: "user",
+          message: "User ne chat end kar di"
+        });
 
-      if (convRows.length) {
-        // await db.query(
-        //   `
-        //   UPDATE astrologers
-        //   SET chat_status = 'online'
-        //   WHERE id = ?
-        //   `,
-        //   [convRows[0].astrologer_id]
-        // );
+        // Astrologer ke personal room mein bhi bhejo
+        io.to(`astrologer_${astrologer_id}`).emit("chat_ended", {
+          success: true,
+          ended_by: "user",
+          conversation_id,
+          message: "User ne chat end kar di"
+        });
 
-        // await setAstrologerOnlineStatus(io, convRows[0].astrologer_id, 1);
-        await setAstrologerOnlineStatus(
-  io,
-  convRows[0].astrologer_id,
-  1
-);
-
-console.log(
-  `[CHAT ENDED] Astrologer ${convRows[0].astrologer_id} -> ONLINE`
-);
+        console.log(`[LEAVE] User ${user_id} left -> Astrologer ${astrologer_id} notified`);
       }
 
-      io.to("room_" + conversation_id).emit("chat_ended", {
-        success: true,
-        message: "Chat ended"
-      });
-    } catch (err) {
-      console.log("Leave Room Error:", err.message);
+      /**
+       * ✅ AGAR ASTROLOGER NE LEAVE KIYA
+       * -> User ko notify karo
+       */
+      if (sender_type === "astrologer") {
+        io.to("room_" + conversation_id).emit("chat_ended", {
+          success: true,
+          ended_by: "astrologer",
+          message: "Astrologer ne chat end kar di"
+        });
+
+        // User ke personal room mein bhi bhejo
+        io.to(`user_${user_id}`).emit("chat_ended", {
+          success: true,
+          ended_by: "astrologer",
+          conversation_id,
+          message: "Astrologer ne chat end kar di"
+        });
+
+        console.log(`[LEAVE] Astrologer ${astrologer_id} left -> User ${user_id} notified`);
+      }
     }
-  });
+
+  } catch (err) {
+    console.log("Leave Room Error:", err.message);
+  }
+});
 
   /**
    * =========================================
