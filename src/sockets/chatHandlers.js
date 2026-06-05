@@ -532,68 +532,113 @@ socket.on("get_chat_list", async (data, callback) => {
   }
 });
 
+// all chat history 
+
 socket.on("get_chat_history", async (data, callback) => {
   try {
 
     console.log("\n=================================");
-    console.log("🔥 GET CHAT HISTORY EVENT HIT");
+    console.log("🔥 GET FULL CHAT HISTORY HIT");
     console.log("Socket ID:", socket.id);
     console.log("Incoming Data:", data);
 
-    const { conversation_id } = data;
+    const { user_id, astrologer_id } = data;
 
-    console.log("conversation_id:", conversation_id);
+    console.log("user_id:", user_id);
+    console.log("astrologer_id:", astrologer_id);
 
-    if (!conversation_id) {
+    if (!user_id || !astrologer_id) {
       return callback?.({
         success: false,
-        message: "conversation_id required"
+        message: "user_id and astrologer_id required"
       });
     }
 
     /**
-     * 1. GET CONVERSATION INFO
+     * GET USER + ASTROLOGER DETAILS
      */
-    const [conversationRows] = await db.query(
+    const [conversationInfo] = await db.query(
       `
       SELECT
-        cc.conversation_id,
-        cc.status,
-        cc.user_id,
-        cc.astrologer_id,
-        cc.last_message,
-        cc.last_message_at,
-
+        u.id AS user_id,
         u.name AS user_name,
         u.profile_image AS user_profile_image,
 
+        a.id AS astrologer_id,
         a.name AS astrologer_name,
         a.profile_image AS astrologer_profile_image
 
-      FROM chat_conversations cc
-      JOIN users u ON u.id = cc.user_id
-      JOIN astrologers a ON a.id = cc.astrologer_id
-      WHERE cc.conversation_id = ?
+      FROM users u
+      JOIN astrologers a
+        ON a.id = ?
+      WHERE u.id = ?
       LIMIT 1
       `,
-      [conversation_id]
+      [astrologer_id, user_id]
     );
 
-    if (conversationRows.length === 0) {
-      console.log("❌ Conversation not found");
-
+    if (!conversationInfo.length) {
       return callback?.({
         success: false,
-        message: "Conversation not found"
+        message: "User/Astrologer not found"
       });
     }
 
-    const conversation = conversationRows[0];
+    const info = conversationInfo[0];
 
-    console.log("✅ Conversation Found:", conversation.conversation_id);
+    info.user_profile_image = info.user_profile_image
+      ? `${process.env.BASE_URL}/uploads/${info.user_profile_image}`
+      : null;
+
+    info.astrologer_profile_image = info.astrologer_profile_image
+      ? `${process.env.BASE_URL}/uploads/${info.astrologer_profile_image}`
+      : null;
 
     /**
-     * 2. GET FULL CHAT HISTORY
+     * GET ALL CONVERSATIONS
+     */
+    const [conversations] = await db.query(
+      `
+      SELECT
+        conversation_id,
+        status,
+        started_at,
+        ended_at,
+        created_at
+      FROM chat_conversations
+      WHERE user_id = ?
+      AND astrologer_id = ?
+      ORDER BY created_at ASC
+      `,
+      [user_id, astrologer_id]
+    );
+
+    console.log("✅ TOTAL CONVERSATIONS:", conversations.length);
+
+    if (!conversations.length) {
+      return callback?.({
+        success: true,
+        data: {
+          user: info,
+          total_conversations: 0,
+          total_messages: 0,
+          messages: []
+        }
+      });
+    }
+
+    const conversationIds = conversations.map(
+      (row) => row.conversation_id
+    );
+
+    console.log("Conversation IDs:", conversationIds);
+
+    const placeholders = conversationIds
+      .map(() => "?")
+      .join(",");
+
+    /**
+     * GET ALL CHAT HISTORY
      */
     const [messages] = await db.query(
       `
@@ -609,32 +654,80 @@ socket.on("get_chat_history", async (data, callback) => {
         is_read,
         sent_at
       FROM chat_messages
-      WHERE conversation_id = ?
-        AND is_deleted = 0
+      WHERE conversation_id IN (${placeholders})
+      AND is_deleted = 0
       ORDER BY sent_at ASC
       `,
-      [conversation_id]
+      conversationIds
     );
 
     console.log("✅ TOTAL MESSAGES:", messages.length);
 
-    if (messages.length > 0) {
-      console.log("✅ FIRST MESSAGE:");
-      console.log(JSON.stringify(messages[0], null, 2));
-    } else {
-      console.log("❌ NO MESSAGES FOUND");
+    /**
+     * FORMAT FILE URL
+     */
+    const formattedMessages = messages.map((msg) => ({
+      id: msg.id,
+      uuid: msg.uuid,
+      conversation_id: msg.conversation_id,
+      sender_type: msg.sender_type,
+      sender_id: msg.sender_id,
+      message: msg.message,
+      message_type: msg.message_type,
+
+      file_url: msg.file_url
+        ? `${process.env.BASE_URL}/uploads/${msg.file_url}`
+        : null,
+
+      is_read: msg.is_read,
+      sent_at: msg.sent_at,
+
+      time: new Date(msg.sent_at).toLocaleTimeString("en-IN", {
+        hour: "2-digit",
+        minute: "2-digit"
+      })
+    }));
+
+    console.log(
+      "✅ FORMATTED MESSAGES:",
+      formattedMessages.length
+    );
+
+    if (formattedMessages.length) {
+      console.log(
+        "✅ FIRST MESSAGE:",
+        JSON.stringify(formattedMessages[0], null, 2)
+      );
     }
 
     console.log("=================================\n");
 
     /**
-     * 3. RESPONSE
+     * ACK RESPONSE
      */
     callback?.({
       success: true,
+      message: "Chat history fetched successfully",
       data: {
-        conversation,
-        messages
+        user: {
+          user_id: info.user_id,
+          user_name: info.user_name,
+          user_profile_image: info.user_profile_image
+        },
+
+        astrologer: {
+          astrologer_id: info.astrologer_id,
+          astrologer_name: info.astrologer_name,
+          astrologer_profile_image:
+            info.astrologer_profile_image
+        },
+
+        total_conversations: conversations.length,
+        total_messages: formattedMessages.length,
+
+        conversations,
+
+        messages: formattedMessages
       }
     });
 
