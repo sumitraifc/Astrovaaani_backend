@@ -138,6 +138,40 @@ module.exports = (io, socket) => {
         [uuidv4(), uniqueKey, user_id, astrologer_id, "active", chargePerMin, 0, 0]
       );
 
+
+
+const orderId = "CHAT" + Date.now();
+
+await db.query(
+`
+INSERT INTO orders
+(
+  order_id,
+  conversation_id,
+  user_id,
+  astrologer_id,
+  astrologer_name,
+  consultation_type,
+  price,
+  status,
+  start_time
+)
+VALUES
+(
+  ?, ?, ?, ?, ?, ?, ?, ?, NOW()
+)
+`,
+[
+  orderId,
+  uniqueKey,
+  user_id,
+  astrologer_id,
+  astroRows[0].name,
+  "chat",
+  chargePerMin,
+  "pending"
+]
+);
       /**
        * ASTROLOGER BUSY
        */
@@ -725,7 +759,7 @@ socket.on("get_chat_history", async (data, callback) => {
         total_conversations: conversations.length,
         total_messages: formattedMessages.length,
 
-        conversations,
+        // conversations,
 
         messages: formattedMessages
       }
@@ -1304,6 +1338,16 @@ console.log(
       [conversation_id]
     );
 
+    await db.query(
+`
+UPDATE orders
+SET
+ status = 'completed',
+ end_time = NOW()
+WHERE conversation_id = ?
+`,
+[conversation_id]
+);
     /**
      * ASTROLOGER ONLINE
      */
