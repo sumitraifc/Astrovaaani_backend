@@ -8,4 +8,6 @@ router.post('/generate-live-token', controller.generateLiveToken);
 // User (viewer) ka token generate karo
 router.post('/generate-viewer-token', controller.getViewerToken);
 
+router.get('/active-lives', controller.getActiveLives);
+
 module.exports = router;

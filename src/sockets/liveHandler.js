@@ -14,63 +14,144 @@ module.exports = (io, socket) => {
   // Astrologer "Go Live" click karta hai
   // Flow: Socket → Service → Agora token + DB
   // =========================================
-  socket.on("start_live", async (data, callback) => {
-    try {
-      const { astrologer_id, title } = data;
+ socket.on("start_live", async (data, callback) => {
+  try {
+    const { astrologer_id, title } = data;
 
-      console.log(`[START LIVE] Astrologer ${astrologer_id}`);
+    console.log(`[START LIVE] Astrologer ${astrologer_id}`);
 
-      // Service se Agora token + DB insert
-      const tokenData = await liveService.generateLiveToken({
-        astrologer_id,
-        title
-      });
+    // Service se Agora token + DB insert
+    const tokenData = await liveService.generateLiveToken({
+      astrologer_id,
+      title
+    });
 
-      const stream_id = tokenData.stream_id;
+    const stream_id = tokenData.stream_id;
 
-      // Socket rooms join
-      socket.join(`live_${stream_id}`);
-      socket.join(`astrologer_${astrologer_id}`);
+    // Socket rooms join
+    socket.join(`live_${stream_id}`);
+    socket.join(`astrologer_${astrologer_id}`);
 
-      // Track karo
-      liveSocketUsers[socket.id] = {
-        user_id: astrologer_id,
-        stream_id,
-        role: "astrologer"
-      };
+    // Track karo
+    liveSocketUsers[socket.id] = {
+      user_id: astrologer_id,
+      stream_id,
+      role: "astrologer"
+    };
 
-      // Sabko broadcast — astrologer live aa gaya
-      // (jo bhi connected hain unhe notification milega)
-      io.emit("astrologer_went_live", {
+    // ✅ Astrologer details fetch karo broadcast ke liye
+    const [astroDetails] = await db.query(
+      `SELECT name, profile_image, expertise
+       FROM astrologers WHERE id = ? LIMIT 1`,
+      [astrologer_id]
+    );
+
+    const astroData = astroDetails[0];
+
+    // ✅ Sabko broadcast — astrologer live aa gaya
+    // all_streams mein add ho jaye frontend pe
+    io.emit("astrologer_went_live", {
+      stream_id,
+      astrologer_id,
+      title: title || "Live Session",
+      stream_key: tokenData.stream_key,
+      channel_name: tokenData.channel_name,
+      viewer_count: 0,
+      total_likes: 0,
+
+      // ✅ Ye details all_streams mein save hongi
+      astrologer_name: astroData?.name || null,
+      astrologer_image: astroData?.profile_image
+        ? `${process.env.BASE_URL}/uploads/${astroData.profile_image}`
+        : null,
+      expertise: astroData?.expertise || null
+    });
+
+    console.log(`[LIVE STARTED] stream_id: ${stream_id}`);
+
+    // ✅ Astrologer ko Agora details + ACK
+    callback?.({
+      success: true,
+      message: "Live started successfully",
+      stream_id,
+      stream_key: tokenData.stream_key,
+
+      // Agora details — frontend SDK ke liye
+      agora_app_id: tokenData.appId,
+      agora_token: tokenData.astrologer_token,
+      channel_name: tokenData.channel_name,
+      uid: tokenData.astrologer_uid,
+      role: "broadcaster",
+
+      // Stream info
+      stream_info: {
         stream_id,
         astrologer_id,
         title: title || "Live Session",
-        stream_key: tokenData.stream_key,
-        channel_name: tokenData.channel_name
+        started_at: new Date()
+      }
+    });
+
+  } catch (err) {
+    console.log("Start Live Error:", err.message);
+    callback?.({ success: false, message: err.message });
+  }
+});
+
+  // =========================================
+// GET FIRST LIVE
+// "See Live" button click — auto join
+// =========================================
+socket.on("get_first_live", async (data, callback) => {
+  try {
+    const { user_id } = data;
+
+    // Sabse zyada viewers wali pehli live
+    const [rows] = await db.query(
+      `SELECT
+        ls.id AS stream_id,
+        ls.astrologer_id,
+        ls.title,
+        ls.stream_key,
+        ls.viewer_count,
+        ls.total_likes,
+        ls.started_at,
+        a.name AS astrologer_name,
+        a.profile_image AS astrologer_image,
+        a.expertise
+      FROM live_streams ls
+      JOIN astrologers a ON a.id = ls.astrologer_id
+      WHERE ls.status = 'live'
+      ORDER BY ls.viewer_count DESC`
+    );
+
+    if (!rows.length) {
+      return callback?.({
+        success: false,
+        message: "No live streams right now",
+        data: null
       });
-
-      console.log(`[LIVE STARTED] stream_id: ${stream_id}`);
-
-      // Astrologer ko Agora details wapas bhejo
-      callback?.({
-        success: true,
-        stream_id,
-        stream_key: tokenData.stream_key,
-
-        // ✅ Agora details — frontend SDK ke liye
-        agora_app_id: tokenData.appId,
-        agora_token: tokenData.astrologer_token,
-        channel_name: tokenData.channel_name,
-        uid: tokenData.astrologer_uid,
-        role: "broadcaster"
-      });
-
-    } catch (err) {
-      console.log("Start Live Error:", err.message);
-      callback?.({ success: false, message: err.message });
     }
-  });
 
+    const allLives = rows.map(row => ({
+      ...row,
+      astrologer_image: row.astrologer_image
+        ? `${process.env.BASE_URL}/uploads/${row.astrologer_image}`
+        : null
+    }));
+
+    callback?.({
+      success: true,
+      first_stream: allLives[0],   // pehli auto-join hogi
+      all_streams: allLives,        // swipe ke liye sari list
+      total: allLives.length
+    });
+
+  } catch (err) {
+    console.log("Get First Live Error:", err.message);
+    callback?.({ success: false, message: err.message });
+  }
+});
   // =========================================
   // JOIN LIVE
   // User live stream join karta hai
