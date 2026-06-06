@@ -1,6 +1,6 @@
 const router  = require('express').Router();
 const ctrl    = require('./controller');
-const adminAuth = require('../../middlewares/auth');
+const adminAuth = require('../../../middlewares/auth');
 
 router.get('/',                       adminAuth, ctrl.getList);
 router.get('/:id',                    adminAuth, ctrl.getById);
