@@ -132,49 +132,78 @@ socket.on("get_first_live", async (data, callback) => {
       });
     }
 
-    // ✅ Image URL map karo
-    const allLives = rows.map(row => ({
-      ...row,
-      astrologer_image: row.astrologer_image
-        ? `${process.env.BASE_URL}/uploads/${row.astrologer_image}`
-        : null
-    }));
-
-    // ✅ Har astrologer ki stream ke liye ALAG token generate karo
-    // App ID sabka same rahega, lekin channel_name & token alag honge
+    // ✅ Har stream ke liye — token + comments sab ek saath
     const allLivesWithTokens = await Promise.all(
-      allLives.map(async (stream) => {
+      rows.map(async (stream) => {
         try {
+          // Agora token generate karo
           const tokenData = await liveService.generateViewerToken({
             user_id,
             stream_id: stream.stream_id
           });
+
+          // Har stream ke last 50 comments fetch karo
+          const [comments] = await db.query(
+            `SELECT
+               lc.id, lc.message, lc.created_at,
+               u.name AS user_name,
+               u.profile_image
+             FROM live_comments lc
+             JOIN users u ON u.id = lc.user_id
+             WHERE lc.stream_id = ? AND lc.is_deleted = 0
+             ORDER BY lc.created_at DESC LIMIT 50`,
+            [stream.stream_id]
+          );
+
+          // Comments mein profile_image ka full URL banao
+          const formattedComments = comments.map(c => ({
+            id: c.id,
+            message: c.message,
+            created_at: c.created_at,
+            user_name: c.user_name,
+            profile_image: c.profile_image
+              ? `${process.env.BASE_URL}/uploads/${c.profile_image}`
+              : null
+          }));
+
           return {
             ...stream,
-            agora_app_id: tokenData.appId,       // Same for all (one Agora project)
-            agora_token: tokenData.user_token,    // ✅ Har stream ka ALAG token
-            channel_name: tokenData.channel_name, // ✅ Har stream ka ALAG channel
-            uid: tokenData.user_uid,              // ✅ Same user, alag channel UID
-            role: "audience"
+            // Astrologer image full URL
+            astrologer_image: stream.astrologer_image
+              ? `${process.env.BASE_URL}/uploads/${stream.astrologer_image}`
+              : null,
+            // Agora details — har stream ke ALAG
+            agora_app_id: tokenData.appId,        // Same (ek Agora project)
+            agora_token: tokenData.user_token,     // ✅ Alag
+            channel_name: tokenData.channel_name,  // ✅ Alag
+            uid: tokenData.user_uid,               // ✅ Alag
+            role: "audience",
+            // ✅ Us stream ke comments — name, pic, message sab
+            recent_comments: formattedComments.reverse()
           };
-        } catch (tokenErr) {
-          console.log(`Token failed for stream ${stream.stream_id}:`, tokenErr.message);
+
+        } catch (err) {
+          console.log(`Stream ${stream.stream_id} error:`, err.message);
           return {
             ...stream,
+            astrologer_image: stream.astrologer_image
+              ? `${process.env.BASE_URL}/uploads/${stream.astrologer_image}`
+              : null,
             agora_app_id: null,
             agora_token: null,
             channel_name: null,
             uid: null,
-            role: "audience"
+            role: "audience",
+            recent_comments: []
           };
         }
       })
     );
 
-    // Pehli stream (index 0) — sabse zyada viewers wali
+    // Pehli stream (sabse zyada viewers)
     const firstStream = allLivesWithTokens[0];
 
-    // ✅ Sirf pehli stream mein viewer join karo (jo screen par dikhegi)
+    // ✅ Pehli stream mein viewer record insert/update karo
     const [existingViewer] = await db.query(
       `SELECT id FROM live_viewers
        WHERE stream_id = ? AND user_id = ? LIMIT 1`,
@@ -211,10 +240,10 @@ socket.on("get_first_live", async (data, callback) => {
       [firstStream.stream_id]
     );
 
-    // ✅ all_streams[0] ka viewer_count bhi update karo
+    // ✅ all_streams[0] ka viewer_count real update karo
     allLivesWithTokens[0].viewer_count = updated[0].viewer_count;
 
-    // ✅ Socket room join (pehli stream ka)
+    // ✅ Socket room join
     socket.join(`live_${firstStream.stream_id}`);
     liveSocketUsers[socket.id] = {
       user_id,
@@ -228,29 +257,11 @@ socket.on("get_first_live", async (data, callback) => {
       viewer_count: updated[0].viewer_count
     });
 
-    // ✅ Pehli stream ke last 50 comments
-    const [comments] = await db.query(
-      `SELECT
-         lc.id, lc.message, lc.created_at,
-         u.name AS user_name, u.profile_image
-       FROM live_comments lc
-       JOIN users u ON u.id = lc.user_id
-       WHERE lc.stream_id = ? AND lc.is_deleted = 0
-       ORDER BY lc.created_at DESC LIMIT 50`,
-      [firstStream.stream_id]
-    );
-
     callback?.({
       success: true,
-
-      // ✅ first_stream hata diya — sab all_streams mein hai
-      // all_streams[0] = jo pehle dikhegi (highest viewers)
-      // all_streams[1], [2]... = swipe karne par
+      // ✅ Sab kuch all_streams mein — har stream ke andar uska token + comments
       all_streams: allLivesWithTokens,
-      total: allLivesWithTokens.length,
-
-      // Pehli stream ke comments
-      recent_comments: comments.reverse()
+      total: allLivesWithTokens.length
     });
 
   } catch (err) {
