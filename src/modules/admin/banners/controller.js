@@ -1,5 +1,5 @@
 const service = require('./service');
-const multer  = require('../../config/multer');
+const multer  = require('../../../config/multer');
 const path    = require('path');
 
 exports.upload = multer.single('image');
