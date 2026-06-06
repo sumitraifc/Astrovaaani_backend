@@ -94,7 +94,7 @@ app.use("/api/favorites", require("./modules/favorite/routes"));
 app.use("/api/expertise", require("./modules/expertise/routes"));
 
 app.use("/api/call", require("./modules/call/routes"));
-
+app.use("/api/live", require("./modules/live/routes")); 
 
 app.use("/api/astrologer", require("./modules/astrosubmodule/astrologer/routes"));
 
@@ -111,6 +111,20 @@ app.use("/api/astrologer/service/", require("./modules/astrosubmodule/astrologer
 app.use("/api/astrologer/home/", require("./modules/astrosubmodule/astrologerhome/routes"));
 
 app.use("/api/astrologer/support-legal", require("./modules/astrosubmodule/astrosupportandleagl/routes"));
+
+// ─── Admin Routes ───────────────────────────────────────────────────────────
+app.use("/api/admin/auth",          require("./modules/admin/auth/routes"));
+app.use("/api/admin/dashboard",     require("./modules/admin/dashboard/routes"));
+app.use("/api/admin/users",         require("./modules/admin/users/routes"));
+app.use("/api/admin/astrologers",   require("./modules/admin/astrologers/routes"));
+app.use("/api/admin/banners",       require("./modules/admin/banners/routes"));
+app.use("/api/admin/sessions",      require("./modules/admin/sessions/routes"));
+app.use("/api/admin/transactions",  require("./modules/admin/transactions/routes"));
+app.use("/api/admin/refunds",       require("./modules/admin/refunds/routes"));
+app.use("/api/admin/notifications", require("./modules/admin/notifications/routes"));
+app.use("/api/admin/settings",      require("./modules/admin/settings/routes"));
+app.use("/api/admin/expertise",     require("./modules/admin/expertise/routes"));
+app.use("/api/admin/support",       require("./modules/admin/support/routes"));
 
 /**
  * =========================

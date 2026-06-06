@@ -1,56 +1,68 @@
 const db = require("../config/db");
+const liveService = require("../modules/live/service");
+
+/**
+ * Socket se connected live users track karo
+ * Format: { socketId: { user_id, stream_id, role } }
+ */
+const liveSocketUsers = {};
 
 module.exports = (io, socket) => {
 
   // =========================================
   // START LIVE
-  // Astrologer live shuru karta hai
+  // Astrologer "Go Live" click karta hai
+  // Flow: Socket → Service → Agora token + DB
   // =========================================
   socket.on("start_live", async (data, callback) => {
     try {
       const { astrologer_id, title } = data;
 
-      // Pehle check karo — already live toh nahi?
-      const [existing] = await db.query(
-        `SELECT id FROM live_streams
-         WHERE astrologer_id = ? AND status = 'live' LIMIT 1`,
-        [astrologer_id]
-      );
+      console.log(`[START LIVE] Astrologer ${astrologer_id}`);
 
-      if (existing.length) {
-        return callback?.({ success: false, message: "Already live" });
-      }
+      // Service se Agora token + DB insert
+      const tokenData = await liveService.generateLiveToken({
+        astrologer_id,
+        title
+      });
 
-      // Unique stream key
-      const streamKey = `live_${astrologer_id}_${Date.now()}`;
+      const stream_id = tokenData.stream_id;
 
-      const [result] = await db.query(
-        `INSERT INTO live_streams
-         (astrologer_id, title, stream_key, status, started_at, created_at)
-         VALUES (?, ?, ?, 'live', NOW(), NOW())`,
-        [astrologer_id, title || "Live Session", streamKey]
-      );
-
-      const stream_id = result.insertId;
-
-      // Astrologer apne personal room mein join karo
+      // Socket rooms join
       socket.join(`live_${stream_id}`);
       socket.join(`astrologer_${astrologer_id}`);
 
+      // Track karo
+      liveSocketUsers[socket.id] = {
+        user_id: astrologer_id,
+        stream_id,
+        role: "astrologer"
+      };
+
       // Sabko broadcast — astrologer live aa gaya
+      // (jo bhi connected hain unhe notification milega)
       io.emit("astrologer_went_live", {
         stream_id,
         astrologer_id,
         title: title || "Live Session",
-        stream_key: streamKey
+        stream_key: tokenData.stream_key,
+        channel_name: tokenData.channel_name
       });
 
-      console.log(`[LIVE STARTED] Astrologer ${astrologer_id} -> stream_id: ${stream_id}`);
+      console.log(`[LIVE STARTED] stream_id: ${stream_id}`);
 
+      // Astrologer ko Agora details wapas bhejo
       callback?.({
         success: true,
         stream_id,
-        stream_key: streamKey
+        stream_key: tokenData.stream_key,
+
+        // ✅ Agora details — frontend SDK ke liye
+        agora_app_id: tokenData.appId,
+        agora_token: tokenData.astrologer_token,
+        channel_name: tokenData.channel_name,
+        uid: tokenData.astrologer_uid,
+        role: "broadcaster"
       });
 
     } catch (err) {
@@ -61,15 +73,19 @@ module.exports = (io, socket) => {
 
   // =========================================
   // JOIN LIVE
-  // User live stream mein join karta hai
+  // User live stream join karta hai
+  // Flow: Socket → Service → Agora viewer token
+  // Emit change: ab agora_token bhi milega
   // =========================================
   socket.on("join_live", async (data, callback) => {
     try {
       const { stream_id, user_id } = data;
 
-      // Stream exist karta hai?
+      console.log(`[JOIN LIVE] User ${user_id} -> Stream ${stream_id}`);
+
+      // Stream exist + active check
       const [streamRows] = await db.query(
-        `SELECT id, astrologer_id, title, viewer_count, total_likes, status
+        `SELECT id, astrologer_id, title, viewer_count, total_likes, status, stream_key
          FROM live_streams WHERE id = ? LIMIT 1`,
         [stream_id]
       );
@@ -80,8 +96,21 @@ module.exports = (io, socket) => {
 
       const stream = streamRows[0];
 
+      // ✅ Agora viewer token generate karo
+      const tokenData = await liveService.generateViewerToken({
+        user_id,
+        stream_id
+      });
+
       // Socket room join
       socket.join(`live_${stream_id}`);
+
+      // Track karo
+      liveSocketUsers[socket.id] = {
+        user_id,
+        stream_id,
+        role: "user"
+      };
 
       // Viewer record insert/update
       const [existingViewer] = await db.query(
@@ -115,25 +144,23 @@ module.exports = (io, socket) => {
         [stream_id, stream_id]
       );
 
-      // Updated viewer count
       const [updated] = await db.query(
         `SELECT viewer_count FROM live_streams WHERE id = ?`,
         [stream_id]
       );
 
-      // User name fetch for join notification
       const [userRows] = await db.query(
         `SELECT name FROM users WHERE id = ? LIMIT 1`,
         [user_id]
       );
 
-      // Room mein sabko viewer count update bhejo
+      // Room mein viewer count update
       io.to(`live_${stream_id}`).emit("viewer_count_updated", {
         stream_id,
         viewer_count: updated[0].viewer_count
       });
 
-      // User joined notification
+      // Sabko — user joined
       io.to(`live_${stream_id}`).emit("user_joined_live", {
         stream_id,
         user_id,
@@ -141,7 +168,7 @@ module.exports = (io, socket) => {
         viewer_count: updated[0].viewer_count
       });
 
-      // Purani comments fetch karo (last 50)
+      // Last 50 comments
       const [comments] = await db.query(
         `SELECT
            lc.id, lc.message, lc.created_at,
@@ -156,6 +183,14 @@ module.exports = (io, socket) => {
       callback?.({
         success: true,
         stream_id,
+
+        // ✅ Agora details — frontend SDK ke liye
+        agora_app_id: tokenData.appId,
+        agora_token: tokenData.user_token,
+        channel_name: tokenData.channel_name,
+        uid: tokenData.user_uid,
+        role: "audience",
+
         stream: {
           id: stream.id,
           astrologer_id: stream.astrologer_id,
@@ -173,14 +208,14 @@ module.exports = (io, socket) => {
   });
 
   // =========================================
-  // LEAVE LIVE
-  // User live se bahar jaata hai
+  // LEAVE LIVE — same as before, no change
   // =========================================
   socket.on("leave_live", async (data) => {
     try {
       const { stream_id, user_id } = data;
 
       socket.leave(`live_${stream_id}`);
+      delete liveSocketUsers[socket.id];
 
       await db.query(
         `UPDATE live_viewers
@@ -214,8 +249,7 @@ module.exports = (io, socket) => {
   });
 
   // =========================================
-  // SEND COMMENT
-  // User comment karta hai
+  // SEND COMMENT — no change
   // =========================================
   socket.on("send_live_comment", async (data, callback) => {
     try {
@@ -225,7 +259,6 @@ module.exports = (io, socket) => {
         return callback?.({ success: false, message: "Message required" });
       }
 
-      // Stream active hai?
       const [streamRows] = await db.query(
         `SELECT id FROM live_streams WHERE id = ? AND status = 'live' LIMIT 1`,
         [stream_id]
@@ -235,14 +268,12 @@ module.exports = (io, socket) => {
         return callback?.({ success: false, message: "Stream not active" });
       }
 
-      // Comment save karo
       const [result] = await db.query(
         `INSERT INTO live_comments (stream_id, user_id, message, created_at)
          VALUES (?, ?, ?, NOW())`,
         [stream_id, user_id, message.trim()]
       );
 
-      // User details
       const [userRows] = await db.query(
         `SELECT name, profile_image FROM users WHERE id = ? LIMIT 1`,
         [user_id]
@@ -260,9 +291,7 @@ module.exports = (io, socket) => {
         created_at: new Date()
       };
 
-      // Poore room mein broadcast
       io.to(`live_${stream_id}`).emit("new_live_comment", comment);
-
       callback?.({ success: true, comment });
 
     } catch (err) {
@@ -272,14 +301,12 @@ module.exports = (io, socket) => {
   });
 
   // =========================================
-  // SEND LIKE
-  // User like karta hai (sirf ek baar)
+  // SEND LIKE — no change
   // =========================================
   socket.on("send_live_like", async (data, callback) => {
     try {
       const { stream_id, user_id } = data;
 
-      // Duplicate like check (INSERT IGNORE)
       const [result] = await db.query(
         `INSERT IGNORE INTO live_likes (stream_id, user_id, created_at)
          VALUES (?, ?, NOW())`,
@@ -290,7 +317,6 @@ module.exports = (io, socket) => {
         return callback?.({ success: false, message: "Already liked" });
       }
 
-      // Total likes update
       await db.query(
         `UPDATE live_streams SET total_likes = total_likes + 1 WHERE id = ?`,
         [stream_id]
@@ -306,7 +332,6 @@ module.exports = (io, socket) => {
         [user_id]
       );
 
-      // Room mein sabko broadcast
       io.to(`live_${stream_id}`).emit("live_liked", {
         stream_id,
         user_id,
@@ -323,8 +348,7 @@ module.exports = (io, socket) => {
   });
 
   // =========================================
-  // SEND GIFT (Wallet se amount)
-  // User astrologer ko gift deta hai
+  // SEND GIFT — no change
   // =========================================
   socket.on("send_live_gift", async (data, callback) => {
     try {
@@ -336,7 +360,6 @@ module.exports = (io, socket) => {
 
       const giftAmount = Number(amount);
 
-      // Stream active check
       const [streamRows] = await db.query(
         `SELECT id FROM live_streams WHERE id = ? AND status = 'live' LIMIT 1`,
         [stream_id]
@@ -346,7 +369,6 @@ module.exports = (io, socket) => {
         return callback?.({ success: false, message: "Stream not active" });
       }
 
-      // Wallet balance check
       const [walletRows] = await db.query(
         `SELECT balance FROM wallet WHERE user_id = ? LIMIT 1`,
         [user_id]
@@ -361,7 +383,6 @@ module.exports = (io, socket) => {
         });
       }
 
-      // Wallet deduct (safe)
       const [walletUpdate] = await db.query(
         `UPDATE wallet SET balance = balance - ?
          WHERE user_id = ? AND balance >= ?`,
@@ -372,7 +393,6 @@ module.exports = (io, socket) => {
         return callback?.({ success: false, message: "Wallet deduction failed" });
       }
 
-      // Wallet transaction record
       const [txnResult] = await db.query(
         `INSERT INTO wallet_transactions
          (user_id, type, amount, reason, created_at)
@@ -380,7 +400,6 @@ module.exports = (io, socket) => {
         [user_id, giftAmount, `Live gift to astrologer ${astrologer_id}`]
       );
 
-      // Gift record save
       const [giftResult] = await db.query(
         `INSERT INTO live_gifts
          (stream_id, user_id, astrologer_id, amount, message, wallet_txn_id, created_at)
@@ -388,13 +407,11 @@ module.exports = (io, socket) => {
         [stream_id, user_id, astrologer_id, giftAmount, message || null, txnResult.insertId]
       );
 
-      // User details
       const [userRows] = await db.query(
         `SELECT name, profile_image FROM users WHERE id = ? LIMIT 1`,
         [user_id]
       );
 
-      // Updated wallet
       const [updatedWallet] = await db.query(
         `SELECT balance FROM wallet WHERE user_id = ? LIMIT 1`,
         [user_id]
@@ -414,7 +431,6 @@ module.exports = (io, socket) => {
         created_at: new Date()
       };
 
-      // Poore room mein gift event broadcast
       io.to(`live_${stream_id}`).emit("live_gift_received", giftData);
 
       callback?.({
@@ -431,7 +447,9 @@ module.exports = (io, socket) => {
 
   // =========================================
   // END LIVE
-  // Astrologer stream band karta hai
+  // ✅ New: agora_token wala kuch nahi — Agora
+  // frontend se band hoga. Hum sirf DB update
+  // aur socket notify karte hain.
   // =========================================
   socket.on("end_live", async (data, callback) => {
     try {
@@ -444,14 +462,12 @@ module.exports = (io, socket) => {
         [stream_id, astrologer_id]
       );
 
-      // Saare viewers ko mark karo inactive
       await db.query(
         `UPDATE live_viewers SET is_active = 0, left_at = NOW()
          WHERE stream_id = ? AND is_active = 1`,
         [stream_id]
       );
 
-      // Final stats
       const [stats] = await db.query(
         `SELECT
            viewer_count, total_likes,
@@ -461,19 +477,18 @@ module.exports = (io, socket) => {
         [stream_id, stream_id, stream_id]
       );
 
-      const finalStats = stats[0];
+      delete liveSocketUsers[socket.id];
 
-      // Poore room ko notify karo
       io.to(`live_${stream_id}`).emit("live_ended", {
         stream_id,
         astrologer_id,
-        stats: finalStats,
+        stats: stats[0],
         message: "Stream has ended"
       });
 
-      console.log(`[LIVE ENDED] stream_id: ${stream_id}, stats:`, finalStats);
+      console.log(`[LIVE ENDED] stream_id: ${stream_id}`);
 
-      callback?.({ success: true, stats: finalStats });
+      callback?.({ success: true, stats: stats[0] });
 
     } catch (err) {
       console.log("End Live Error:", err.message);
@@ -482,8 +497,7 @@ module.exports = (io, socket) => {
   });
 
   // =========================================
-  // GET LIVE STATS
-  // Viewer count, likes, comments realtime
+  // GET LIVE STATS — no change
   // =========================================
   socket.on("get_live_stats", async (data, callback) => {
     try {
@@ -517,11 +531,74 @@ module.exports = (io, socket) => {
   });
 
   // =========================================
-  // DISCONNECT HANDLER
+  // ✅ DISCONNECT HANDLER — ab complete hai
   // =========================================
   const handleLiveDisconnect = async () => {
-    // Koi active live_viewers rows hain is socket ke liye?
-    // (socket.id se user_id track karna padega — register event mein store karo)
+    try {
+      const liveUser = liveSocketUsers[socket.id];
+
+      if (!liveUser) return;
+
+      const { user_id, stream_id, role } = liveUser;
+
+      if (role === "astrologer") {
+        // Astrologer disconnect — stream end karo
+        await db.query(
+          `UPDATE live_streams
+           SET status = 'ended', ended_at = NOW()
+           WHERE id = ? AND status = 'live'`,
+          [stream_id]
+        );
+
+        await db.query(
+          `UPDATE live_viewers SET is_active = 0, left_at = NOW()
+           WHERE stream_id = ? AND is_active = 1`,
+          [stream_id]
+        );
+
+        io.to(`live_${stream_id}`).emit("live_ended", {
+          stream_id,
+          message: "Astrologer disconnected — stream ended"
+        });
+
+        console.log(`[DISCONNECT] Astrologer ${user_id} -> Stream ${stream_id} ENDED`);
+
+      } else {
+        // User disconnect — viewer count update
+        await db.query(
+          `UPDATE live_viewers
+           SET is_active = 0, left_at = NOW()
+           WHERE stream_id = ? AND user_id = ?`,
+          [stream_id, user_id]
+        );
+
+        await db.query(
+          `UPDATE live_streams
+           SET viewer_count = (
+             SELECT COUNT(*) FROM live_viewers
+             WHERE stream_id = ? AND is_active = 1
+           ) WHERE id = ?`,
+          [stream_id, stream_id]
+        );
+
+        const [updated] = await db.query(
+          `SELECT viewer_count FROM live_streams WHERE id = ?`,
+          [stream_id]
+        );
+
+        io.to(`live_${stream_id}`).emit("viewer_count_updated", {
+          stream_id,
+          viewer_count: updated[0]?.viewer_count || 0
+        });
+
+        console.log(`[DISCONNECT] User ${user_id} left Stream ${stream_id}`);
+      }
+
+      delete liveSocketUsers[socket.id];
+
+    } catch (err) {
+      console.log("Live Disconnect Error:", err.message);
+    }
   };
 
   return { handleLiveDisconnect };
