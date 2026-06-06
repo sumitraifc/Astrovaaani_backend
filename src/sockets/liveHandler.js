@@ -140,11 +140,101 @@ socket.on("get_first_live", async (data, callback) => {
         : null
     }));
 
+    const firstStream = allLives[0];
+
+    // ✅ Pehli stream ka Agora token bhi generate karo
+    const tokenData = await liveService.generateViewerToken({
+      user_id,
+      stream_id: firstStream.stream_id
+    });
+
+    // ✅ Viewer record bhi insert karo
+    const [existingViewer] = await db.query(
+      `SELECT id FROM live_viewers
+       WHERE stream_id = ? AND user_id = ? LIMIT 1`,
+      [firstStream.stream_id, user_id]
+    );
+
+    if (existingViewer.length) {
+      await db.query(
+        `UPDATE live_viewers
+         SET is_active = 1, joined_at = NOW(), left_at = NULL
+         WHERE stream_id = ? AND user_id = ?`,
+        [firstStream.stream_id, user_id]
+      );
+    } else {
+      await db.query(
+        `INSERT INTO live_viewers (stream_id, user_id, joined_at, is_active)
+         VALUES (?, ?, NOW(), 1)`,
+        [firstStream.stream_id, user_id]
+      );
+    }
+
+    // ✅ Viewer count update
+    await db.query(
+      `UPDATE live_streams
+       SET viewer_count = (
+         SELECT COUNT(*) FROM live_viewers
+         WHERE stream_id = ? AND is_active = 1
+       ) WHERE id = ?`,
+      [firstStream.stream_id, firstStream.stream_id]
+    );
+
+    const [updated] = await db.query(
+      `SELECT viewer_count FROM live_streams WHERE id = ?`,
+      [firstStream.stream_id]
+    );
+
+    // ✅ Socket room join
+    socket.join(`live_${firstStream.stream_id}`);
+
+    // Track karo
+    liveSocketUsers[socket.id] = {
+      user_id,
+      stream_id: firstStream.stream_id,
+      role: "user"
+    };
+
+    // ✅ Room ko viewer count update bhejo
+    io.to(`live_${firstStream.stream_id}`).emit("viewer_count_updated", {
+      stream_id: firstStream.stream_id,
+      viewer_count: updated[0].viewer_count
+    });
+
+    // ✅ Last 50 comments
+    const [comments] = await db.query(
+      `SELECT
+         lc.id, lc.message, lc.created_at,
+         u.name AS user_name, u.profile_image
+       FROM live_comments lc
+       JOIN users u ON u.id = lc.user_id
+       WHERE lc.stream_id = ? AND lc.is_deleted = 0
+       ORDER BY lc.created_at DESC LIMIT 50`,
+      [firstStream.stream_id]
+    );
+
     callback?.({
       success: true,
-      first_stream: allLives[0],   // pehli auto-join hogi
-      all_streams: allLives,        // swipe ke liye sari list
-      total: allLives.length
+
+      // ✅ Agora details — video join ke liye
+      agora_app_id: tokenData.appId,
+      agora_token: tokenData.user_token,
+      channel_name: tokenData.channel_name,
+      uid: tokenData.user_uid,
+      role: "audience",
+
+      // Pehli stream details
+      first_stream: {
+        ...firstStream,
+        viewer_count: updated[0].viewer_count
+      },
+
+      // Swipe ke liye sari list
+      all_streams: allLives,
+      total: allLives.length,
+
+      // Comments
+      recent_comments: comments.reverse()
     });
 
   } catch (err) {
