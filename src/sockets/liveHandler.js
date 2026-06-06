@@ -106,7 +106,6 @@ socket.on("get_first_live", async (data, callback) => {
   try {
     const { user_id } = data;
 
-    // Sabse zyada viewers wali pehli live
     const [rows] = await db.query(
       `SELECT
         ls.id AS stream_id,
@@ -133,6 +132,7 @@ socket.on("get_first_live", async (data, callback) => {
       });
     }
 
+    // ✅ Image URL map karo
     const allLives = rows.map(row => ({
       ...row,
       astrologer_image: row.astrologer_image
@@ -140,15 +140,41 @@ socket.on("get_first_live", async (data, callback) => {
         : null
     }));
 
-    const firstStream = allLives[0];
+    // ✅ Har astrologer ki stream ke liye ALAG token generate karo
+    // App ID sabka same rahega, lekin channel_name & token alag honge
+    const allLivesWithTokens = await Promise.all(
+      allLives.map(async (stream) => {
+        try {
+          const tokenData = await liveService.generateViewerToken({
+            user_id,
+            stream_id: stream.stream_id
+          });
+          return {
+            ...stream,
+            agora_app_id: tokenData.appId,       // Same for all (one Agora project)
+            agora_token: tokenData.user_token,    // ✅ Har stream ka ALAG token
+            channel_name: tokenData.channel_name, // ✅ Har stream ka ALAG channel
+            uid: tokenData.user_uid,              // ✅ Same user, alag channel UID
+            role: "audience"
+          };
+        } catch (tokenErr) {
+          console.log(`Token failed for stream ${stream.stream_id}:`, tokenErr.message);
+          return {
+            ...stream,
+            agora_app_id: null,
+            agora_token: null,
+            channel_name: null,
+            uid: null,
+            role: "audience"
+          };
+        }
+      })
+    );
 
-    // ✅ Pehli stream ka Agora token bhi generate karo
-    const tokenData = await liveService.generateViewerToken({
-      user_id,
-      stream_id: firstStream.stream_id
-    });
+    // Pehli stream (index 0) — sabse zyada viewers wali
+    const firstStream = allLivesWithTokens[0];
 
-    // ✅ Viewer record bhi insert karo
+    // ✅ Sirf pehli stream mein viewer join karo (jo screen par dikhegi)
     const [existingViewer] = await db.query(
       `SELECT id FROM live_viewers
        WHERE stream_id = ? AND user_id = ? LIMIT 1`,
@@ -185,23 +211,24 @@ socket.on("get_first_live", async (data, callback) => {
       [firstStream.stream_id]
     );
 
-    // ✅ Socket room join
-    socket.join(`live_${firstStream.stream_id}`);
+    // ✅ all_streams[0] ka viewer_count bhi update karo
+    allLivesWithTokens[0].viewer_count = updated[0].viewer_count;
 
-    // Track karo
+    // ✅ Socket room join (pehli stream ka)
+    socket.join(`live_${firstStream.stream_id}`);
     liveSocketUsers[socket.id] = {
       user_id,
       stream_id: firstStream.stream_id,
       role: "user"
     };
 
-    // ✅ Room ko viewer count update bhejo
+    // ✅ Room ko viewer count emit karo
     io.to(`live_${firstStream.stream_id}`).emit("viewer_count_updated", {
       stream_id: firstStream.stream_id,
       viewer_count: updated[0].viewer_count
     });
 
-    // ✅ Last 50 comments
+    // ✅ Pehli stream ke last 50 comments
     const [comments] = await db.query(
       `SELECT
          lc.id, lc.message, lc.created_at,
@@ -216,24 +243,13 @@ socket.on("get_first_live", async (data, callback) => {
     callback?.({
       success: true,
 
-      // ✅ Agora details — video join ke liye
-      agora_app_id: tokenData.appId,
-      agora_token: tokenData.user_token,
-      channel_name: tokenData.channel_name,
-      uid: tokenData.user_uid,
-      role: "audience",
+      // ✅ first_stream hata diya — sab all_streams mein hai
+      // all_streams[0] = jo pehle dikhegi (highest viewers)
+      // all_streams[1], [2]... = swipe karne par
+      all_streams: allLivesWithTokens,
+      total: allLivesWithTokens.length,
 
-      // Pehli stream details
-      first_stream: {
-        ...firstStream,
-        viewer_count: updated[0].viewer_count
-      },
-
-      // Swipe ke liye sari list
-      all_streams: allLives,
-      total: allLives.length,
-
-      // Comments
+      // Pehli stream ke comments
       recent_comments: comments.reverse()
     });
 
