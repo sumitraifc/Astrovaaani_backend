@@ -41,6 +41,7 @@ app.use(morgan("dev"));
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
+  skip: (req) => req.path.startsWith('/api/admin'), // Admin routes skip rate limit
 });
 app.use(limiter);
 
