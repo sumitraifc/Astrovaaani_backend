@@ -151,8 +151,18 @@ if (existing) {
     updateData.registration_step = 5;
     updateData.approval_status = "pending";
   } else if (isRejected) {
-    // Resubmit: stay on same step until admin re-reviews
-    updateData.registration_step = step;
+    // Resubmit: check if any other step is also rejected
+    const otherRejectedStep = [1,2,3,4,5].find(
+      (s) => s !== step && astro[`step${s}_status`] === "rejected"
+    );
+
+    if (otherRejectedStep) {
+      // Koi aur step bhi rejected hai → usp pe bhejo
+      updateData.registration_step = otherRejectedStep;
+    } else {
+      // Koi aur rejected nahi → normal next step pe bhejo
+      updateData.registration_step = step + 1;
+    }
   } else {
     // Normal flow
     updateData.registration_step = step + 1;
@@ -160,10 +170,20 @@ if (existing) {
 
   await repo.update(id, updateData);
 
+  // Check karo koi bhi step rejected toh nahi hai ab
+  const updatedAstro = await repo.findById(id);
+  const anyStillRejected = [1,2,3,4,5].some(
+    (s) => updatedAstro[`step${s}_status`] === "rejected"
+  );
+  const allPending = [1,2,3,4,5].every(
+    (s) => updatedAstro[`step${s}_status`] === "pending"
+  );
+
   return {
     success: true,
     nextStep: updateData.registration_step,
-    completed: step === 5,
+    completed: step === 5 || !anyStillRejected,
+    anyStillRejected,
     status: updateData.approval_status
   };
 };
