@@ -3,6 +3,8 @@ const service = require('./service');
 exports.login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log('Admin login attempt:', email);
+    console.log('Request body:', req.body); 
     if (!email || !password)
       return res.status(400).json({ success: false, message: 'Email and password required' });
 
