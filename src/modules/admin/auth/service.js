@@ -1,4 +1,3 @@
-const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const repo = require('./repository');
 
@@ -6,8 +5,7 @@ exports.login = async (email, password) => {
   const admin = await repo.findByEmail(email);
   if (!admin) throw new Error('Invalid email or password');
 
-  const match = await bcrypt.compare(password, admin.password);
-  if (!match) throw new Error('Invalid email or password');
+  if (admin.password !== password) throw new Error('Invalid email or password');
 
   await repo.updateLastLogin(admin.id);
 
@@ -30,10 +28,8 @@ exports.changePassword = async (adminId, oldPassword, newPassword) => {
   const admin = rows[0];
   if (!admin) throw new Error('Admin not found');
 
-  const match = await bcrypt.compare(oldPassword, admin.password);
-  if (!match) throw new Error('Current password is incorrect');
+  if (admin.password !== oldPassword) throw new Error('Current password is incorrect');
 
-  const hashed = await bcrypt.hash(newPassword, 10);
-  await repo.updatePassword(adminId, hashed);
+  await repo.updatePassword(adminId, newPassword);
   return true;
 };

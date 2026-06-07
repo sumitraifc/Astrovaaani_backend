@@ -5,6 +5,7 @@ exports.findByEmail = async (email) => {
     'SELECT * FROM admin_users WHERE email = ? AND status = ?',
     [email, 'active']
   );
+    console.log("DB RESULT:", rows);
   return rows[0];
 };
 
