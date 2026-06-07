@@ -86,30 +86,43 @@ exports.getById = async (id) => {
 };
 
 exports.updateStepStatus = async (id, step, status, remark, adminId) => {
-  const stepCol  = `step${step}_status`;
+  const stepCol   = `step${step}_status`;
   const remarkCol = `step${step}_remark`;
 
+  // Update step status + remark
   await pool.query(
     `UPDATE astrologers SET ${stepCol} = ?, ${remarkCol} = ? WHERE id = ?`,
     [status, remark || null, id]
   );
 
-  // Check if all 5 steps are approved → set approval_status = approved
+  // Re-fetch all step statuses
   const [[astro]] = await pool.query(
-    'SELECT step1_status, step2_status, step3_status, step4_status, step5_status FROM astrologers WHERE id = ?',
+    'SELECT step1_status, step2_status, step3_status, step4_status, step5_status, registration_step FROM astrologers WHERE id = ?',
     [id]
   );
 
-  const allApproved = [1, 2, 3, 4, 5].every((s) => astro[`step${s}_status`] === 'approved');
-  const anyRejected = [1, 2, 3, 4, 5].some((s) => astro[`step${s}_status`] === 'rejected');
+  const allApproved = [1,2,3,4,5].every((s) => astro[`step${s}_status`] === 'approved');
+  const anyRejected = [1,2,3,4,5].some((s)  => astro[`step${s}_status`] === 'rejected');
 
-  let approvalStatus = 'pending';
-  if (allApproved) approvalStatus = 'approved';
-  else if (anyRejected) approvalStatus = 'partial';
+  let approvalStatus   = 'pending';
+  let registrationStep = astro.registration_step;
+
+  if (allApproved) {
+    approvalStatus   = 'approved';
+    registrationStep = 5;
+  } else if (anyRejected) {
+    approvalStatus = 'partial_rejected';
+    // Send astrologer back to the rejected step so they can resubmit
+    if (status === 'rejected') registrationStep = step;
+  } else if (status === 'approved') {
+    // This step approved, let astrologer move to next step
+    approvalStatus   = 'resume';
+    registrationStep = step + 1;
+  }
 
   await pool.query(
-    `UPDATE astrologers SET approval_status = ?, approved_at = ?, approved_by = ? WHERE id = ?`,
-    [approvalStatus, allApproved ? new Date() : null, allApproved ? adminId : null, id]
+    `UPDATE astrologers SET approval_status = ?, registration_step = ?, approved_at = ?, approved_by = ? WHERE id = ?`,
+    [approvalStatus, registrationStep, allApproved ? new Date() : null, allApproved ? adminId : null, id]
   );
 
   return approvalStatus;

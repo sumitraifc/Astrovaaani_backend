@@ -452,7 +452,9 @@ exports.verifyOtp = async (mobile, otp, fcm_token = null) => {
       registration_step: user.registration_step,
       registration_completed: user.registration_completed,
 
-      nextStep: user.registration_step
+      nextStep: user.registration_step,
+      user
+
     };
   }
 

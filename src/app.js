@@ -96,6 +96,7 @@ app.use("/api/expertise", require("./modules/expertise/routes"));
 app.use("/api/call", require("./modules/call/routes"));
 app.use("/api/live", require("./modules/live/routes")); 
 
+//admin 
 app.use("/api/astrologer", require("./modules/astrosubmodule/astrologer/routes"));
 
 app.use("/api/astrologer/bankdetails", require("./modules/astrosubmodule/bankdetails/routes"));

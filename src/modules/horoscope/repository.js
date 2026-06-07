@@ -75,3 +75,82 @@ exports.update = async (id, data) => {
 
   return true;
 };
+
+exports.findByDate = async (
+  zodiac_id,
+  date,
+  type
+) => {
+
+  const [rows] = await db.query(
+    `
+    SELECT *
+    FROM horoscopes
+    WHERE zodiac_id = ?
+    AND date = ?
+    AND type = ?
+    LIMIT 1
+    `,
+    [
+      zodiac_id,
+      date,
+      type
+    ]
+  );
+
+  return rows[0];
+};
+
+exports.createHoroscope = async (data) => {
+
+  const [result] = await db.query(
+    `
+    INSERT INTO horoscopes
+    (
+      zodiac_id,
+      date,
+      type,
+      lucky_number,
+      lucky_color,
+      lucky_time,
+      lucky_direction,
+      love,
+      career,
+      money,
+      health,
+      personal_growth,
+      family,
+      education,
+      travel,
+      overview,
+      tip_of_the_day
+    )
+    VALUES
+    (
+      ?,?,?,?,?,?,?,?,?,?,
+      ?,?,?,?,?,?,?
+    )
+    `,
+    [
+      data.zodiac_id,
+      data.date,
+      data.type,
+      data.lucky_number,
+      data.lucky_color,
+      data.lucky_time,
+      data.lucky_direction,
+      data.love,
+      data.career,
+      data.money,
+      data.health,
+      data.personal_growth,
+      data.family,
+      data.education,
+      data.travel,
+      data.overview,
+      data.tip_of_the_day
+    ]
+  );
+
+  return result;
+};

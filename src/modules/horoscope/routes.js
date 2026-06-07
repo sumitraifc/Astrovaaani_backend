@@ -11,4 +11,5 @@ router.post("/", controller.create);
 
 router.put("/:id", controller.update);
 
+router.post("/sync", controller.syncHoroscope);
 module.exports = router;

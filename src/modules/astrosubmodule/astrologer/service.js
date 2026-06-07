@@ -125,7 +125,11 @@ if (existing) {
     throw new Error("Astrologer not found");
   }
 
-  if (astro.registration_step !== step) {
+  const stepStatusKey = `step${step}_status`;
+  const isRejected = astro[stepStatusKey] === "rejected";
+
+  // Allow resubmit if step was rejected, else check registration_step
+  if (!isRejected && astro.registration_step !== step) {
     return {
       success: false,
       message: `You are on step ${astro.registration_step}`
@@ -137,22 +141,21 @@ if (existing) {
   // ======================
   let updateData = {
     ...payload,
-    registration_step: step + 1,
-
-    // 🔥 DEFAULT STATUS
+    [stepStatusKey]: "pending",
     approval_status: "resume"
   };
 
-  // ======================
-  // FINAL STEP (STEP 5)
-  // ======================
   if (step === 5) {
-
+    // Final submit
     updateData.registration_completed = 1;
     updateData.registration_step = 5;
-
-    // 🔥 IMPORTANT RULE
     updateData.approval_status = "pending";
+  } else if (isRejected) {
+    // Resubmit: stay on same step until admin re-reviews
+    updateData.registration_step = step;
+  } else {
+    // Normal flow
+    updateData.registration_step = step + 1;
   }
 
   await repo.update(id, updateData);

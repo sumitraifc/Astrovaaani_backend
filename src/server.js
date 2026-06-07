@@ -47,6 +47,7 @@ const io = new Server(server, {
  */
 require("./sockets/socket")(io);
 
+require("./cron/horoscopeCron");
 /**
  * START SERVER
  */

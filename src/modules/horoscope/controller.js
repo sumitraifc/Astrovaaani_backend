@@ -51,3 +51,38 @@ exports.update = async (req, res) => {
     res.status(500).json({ success: false, message: err.message });
   }
 };
+
+exports.syncHoroscope = async (req, res) => {
+try {
+
+
+const { type = "daily" } = req.body;
+
+console.log("\n==============================");
+console.log("HOROSCOPE SYNC API HIT");
+console.log("TYPE :", type);
+console.log("==============================\n");
+
+const data = await service.syncHoroscope(type);
+
+res.json({
+  success: true,
+  message: `${type} horoscope synced successfully`,
+  data
+});
+
+
+} catch (err) {
+
+
+console.log("\n❌ HOROSCOPE SYNC ERROR");
+console.log(err);
+
+res.status(500).json({
+  success: false,
+  message: err.message
+});
+
+
+}
+};
