@@ -228,6 +228,10 @@ exports.getTimeline = async (astrologerId) => {
     status: "submitted",
     date: data.created_at
   });
+const approvedAt = data.approved_at ? new Date(data.approved_at) : new Date();
+
+const validityDate = new Date(approvedAt);
+validityDate.setFullYear(validityDate.getFullYear() + 1);
 
   if (data.step1_status && data.step1_status !== "pending") {
     timeline.push({
@@ -277,8 +281,8 @@ exports.getTimeline = async (astrologerId) => {
 
     verification_date: data.approved_at,
 
-    next_review_date: null,
-    validity_date: null,
+    next_review_date: data.next_review_date|| null ,
+validity_date: data.validity_date|| validityDate,
 
     document_verified:
       data.approval_status === "approved" ? 1 : 0,
@@ -289,6 +293,7 @@ exports.getTimeline = async (astrologerId) => {
       id_proof: data.id_proof,
       address_proof: data.address_proof,
       education_certificate: data.education_cert,
+      astro_certificate: data.astro_cert,
       experience_certificate: null,
       professional_certificate: null,
       other_documents: null
