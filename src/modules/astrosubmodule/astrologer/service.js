@@ -106,16 +106,13 @@ if (existing) {
       registration_completed: 0,
 
       // 🔥 IMPORTANT FIX
-      approval_status: "resume",
-      step1_status: "pending"
+      approval_status: "resume"
     });
 
     return {
       success: true,
       id: newId,
-      nextStep: 2,
-      completed: false,
-      step1_status: "pending"
+      nextStep: 2
     };
   }
 
@@ -185,9 +182,8 @@ if (existing) {
   return {
     success: true,
     nextStep: updateData.registration_step,
-    completed: (step === 5 && !anyStillRejected) || (allPending && !anyStillRejected),
+    completed: step === 5 || !anyStillRejected,
     anyStillRejected,
-    allPending,
     status: updateData.approval_status
   };
 };
