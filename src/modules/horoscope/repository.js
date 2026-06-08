@@ -110,43 +110,72 @@ exports.createHoroscope = async (data) => {
       zodiac_id,
       date,
       type,
+
       lucky_number,
       lucky_color,
       lucky_time,
       lucky_direction,
+
       love,
+      love_status,
+
       career,
+      career_status,
+
       money,
+      finance_status,
+
       health,
+      health_status,
+
       personal_growth,
+      personal_growth_status,
+
       family,
       education,
       travel,
+
       overview,
       tip_of_the_day
     )
     VALUES
     (
-      ?,?,?,?,?,?,?,?,?,?,
-      ?,?,?,?,?,?,?
+      ?,?,?,?,?,?,
+      ?,?,?,?,
+      ?,?,?,?,
+      ?,?,?,?,
+      ?,?,?,?,?
     )
     `,
     [
       data.zodiac_id,
       data.date,
       data.type,
+
       data.lucky_number,
       data.lucky_color,
       data.lucky_time,
       data.lucky_direction,
+
       data.love,
+      data.love_status,
+
       data.career,
+      data.career_status,
+
       data.money,
+      data.finance_status,
+
       data.health,
+      data.health_status,
+
       data.personal_growth,
+      data.personal_growth_status,
+
       data.family,
       data.education,
       data.travel,
+
       data.overview,
       data.tip_of_the_day
     ]

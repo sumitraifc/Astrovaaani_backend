@@ -83,22 +83,7 @@ const rashi = rashiMap[zodiac.name];
     continue;
   }
 
-  // await repo.createHoroscope({
-  //   zodiac_id: zodiac.id,
-  //   date: apiData.date,
-  //   type,
 
-  //   lucky_number: horoscope.luckyNumber,
-  //   lucky_color: horoscope.luckyColor,
-  //   lucky_time: horoscope.luckyTime,
-
-  //   love: horoscope.love?.description || null,
-  //   career: horoscope.career?.description || null,
-  //   money: horoscope.finance?.description || null,
-  //   health: horoscope.health?.description || null,
-  //   personal_growth:
-  //     horoscope.personalGrowth?.description || null
-  // });
 await repo.createHoroscope({
   zodiac_id: zodiac.id,
   date: apiData.date,
@@ -107,20 +92,31 @@ await repo.createHoroscope({
   lucky_number: horoscope.luckyNumber,
   lucky_color: horoscope.luckyColor,
   lucky_time: horoscope.luckyTime,
-  lucky_direction: horoscope.luckyDirection || null,
+  lucky_direction: horoscope.luckyDirection,
 
   love: horoscope.love?.description || null,
+  love_status: horoscope.love?.status || null,
+
   career: horoscope.career?.description || null,
-  money: horoscope.finance?.description || null,
+  career_status: horoscope.career?.status || null,
+
   health: horoscope.health?.description || null,
+  health_status: horoscope.health?.status || null,
+
+  money: horoscope.finance?.description || null,
+  finance_status: horoscope.finance?.status || null,
+
   personal_growth: horoscope.personalGrowth?.description || null,
+  personal_growth_status: horoscope.personalGrowth?.status || null,
 
   family: horoscope.family?.description || null,
   education: horoscope.education?.description || null,
   travel: horoscope.travel?.description || null,
-  overview: horoscope.overview || null,
-  tip_of_the_day: horoscope.tipOfTheDay || null
+
+  overview: horoscope.overview,
+  tip_of_the_day: horoscope.tipOfTheDay
 });
+
 
   console.log(
     `✅ Saved ${zodiac.name} (${type})`
