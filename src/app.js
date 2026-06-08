@@ -97,6 +97,7 @@ app.use("/api/expertise", require("./modules/expertise/routes"));
 app.use("/api/call", require("./modules/call/routes"));
 app.use("/api/live", require("./modules/live/routes")); 
 
+app.use("/api", require("./uploads/upload")); // Upload route for chat files
 //admin 
 app.use("/api/astrologer", require("./modules/astrosubmodule/astrologer/routes"));
 

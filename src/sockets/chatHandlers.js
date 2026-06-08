@@ -927,19 +927,31 @@ socket.on("get_chat_history", async (data, callback) => {
       /**
        * UPDATE CONVERSATION
        */
-      await db.query(
-        `
-        UPDATE chat_conversations
-        SET
-          total_messages = total_messages + 1,
-          last_message_at = NOW(),
-          last_message = ?,
-          updated_at = NOW()
-        WHERE conversation_id = ?
-        `,
-        [message,conversation_id]
-      );
-
+      // await db.query(
+      //   `
+      //   UPDATE chat_conversations
+      //   SET
+      //     total_messages = total_messages + 1,
+      //     last_message_at = NOW(),
+      //     last_message = ?,
+      //     updated_at = NOW()
+      //   WHERE conversation_id = ?
+      //   `,
+      //   [message,conversation_id]
+      // );
+await db.query(
+  `UPDATE chat_conversations
+   SET
+     total_messages = total_messages + 1,
+     last_message_at = NOW(),
+     last_message = ?,
+     updated_at = NOW()
+   WHERE conversation_id = ?`,
+  [
+    message || (message_type === "image" ? "📷 Photo" : "📎 File"),  // ← yeh add karo
+    conversation_id
+  ]
+);
       /**
        * GET CONVERSATION
        */
@@ -1236,7 +1248,13 @@ console.log(
 
           console.log("updatedRows", updatedRows);
 
-      io.in("room_" + conversation_id).emit("receive_message", savedMessage);
+      // io.in("room_" + conversation_id).emit("receive_message", savedMessage);
+      io.in("room_" + conversation_id).emit("receive_message", {
+  ...savedMessage,
+  file_url: savedMessage.file_url
+    ? `${process.env.BASE_URL}/uploads/${savedMessage.file_url}`
+    : null
+});
     } catch (err) {
       console.log("Message Error:", err.message);
     }
