@@ -2,10 +2,28 @@ const service = require("./service");
 
 exports.getZodiacs = async (req, res) => {
   try {
+
     const data = await service.getZodiacs();
-    res.json({ success: true, data });
+
+    const formatFile = (file) =>
+      file ? `${process.env.BASE_URL}/uploads/${file}` : null;
+
+    const formatted = data.map(item => ({
+      ...item,
+      image: formatFile(item.image),
+      symbol_image: formatFile(item.symbol_image)
+    }));
+
+    res.json({
+      success: true,
+      data: formatted
+    });
+
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
   }
 };
 
