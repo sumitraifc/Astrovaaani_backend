@@ -238,6 +238,11 @@ exports.getProfile = async (req, res) => {
 
     const result = await service.getProfile(astrologerId);
 
+    // 🔥 profile image full URL me convert karo
+    if (result?.profile_image) {
+      result.profile_image = `${process.env.BASE_URL}/uploads/${result.profile_image}`;
+    }
+
     res.json({
       success: true,
       data: result
@@ -283,6 +288,18 @@ exports.getTimeline = async (req, res) => {
     const astrologerId = req.user.id;
 
     const result = await service.getTimeline(astrologerId);
+
+    const formatFile = (file) =>
+      file ? `${process.env.BASE_URL}/uploads/${file}` : null;
+
+    if (result?.documents) {
+      result.documents.id_proof = formatFile(result.documents.id_proof);
+      result.documents.address_proof = formatFile(result.documents.address_proof);
+      result.documents.education_certificate = formatFile(result.documents.education_certificate);
+
+      // 🔥 added astro certificate
+      result.documents.astro_certificate = formatFile(result.documents.astro_certificate);
+    }
 
     res.json({
       success: true,
