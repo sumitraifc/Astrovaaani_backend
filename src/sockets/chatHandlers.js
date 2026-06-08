@@ -7,6 +7,69 @@ const { sendNotification } = require("../config/notification");
 const activeTimers = {};
 const onlineUsers = {};
 
+async function getFcmTokenByType(type, id) {
+  const table = type === "astrologer" ? "astrologers" : "users";
+  const [rows] = await db.query(
+    `SELECT fcm_token FROM ${table} WHERE id = ? LIMIT 1`,
+    [id]
+  );
+  return rows[0]?.fcm_token || null;
+}
+
+async function notifyPush({ targetType, targetId, title, body, data = {} }) {
+  const token = await getFcmTokenByType(targetType, targetId);
+  if (!token) return null;
+  try {
+    return await sendNotification({ token, title, body, data });
+  } catch (err) {
+    console.log(`[FCM ERROR] Push failed for ${targetType} ${targetId}:`, err.message);
+    return null;
+  }
+}
+
+async function notifyChatRecipient({ conversation, sender_type, sender_id, message, message_type, file_url }) {
+  const recipientType = sender_type === "user" ? "astrologer" : "user";
+  const recipientId = sender_type === "user" ? conversation.astrologer_id : conversation.user_id;
+  if (!recipientId) return null;
+
+  const isRecipientOnline =
+    recipientType === "astrologer"
+      ? conversation.is_astrologer_online === 1
+      : conversation.is_user_online === 1;
+
+  if (isRecipientOnline) {
+    return null;
+  }
+
+  const title =
+    sender_type === "user"
+      ? "New message from user"
+      : "New message from astrologer";
+
+  const body = message
+    ? message.length > 100
+      ? `${message.slice(0, 97)}...`
+      : message
+    : file_url
+    ? "You received a new file"
+    : "You have a new message";
+
+  return notifyPush({
+    targetType: recipientType,
+    targetId: recipientId,
+    title,
+    body,
+    data: {
+      type: "chat_message",
+      conversation_id: conversation.conversation_id,
+      sender_type,
+      sender_id,
+      message_type: message_type || "text",
+      file_url: file_url || ""
+    }
+  });
+}
+
 module.exports = (io, socket) => {
   /**
    * =========================================
@@ -896,6 +959,15 @@ socket.on("get_chat_history", async (data, callback) => {
 
       const conversation = conversationRows[0];
 
+      await notifyChatRecipient({
+        conversation,
+        sender_type,
+        sender_id,
+        message,
+        message_type,
+        file_url
+      });
+
       /**
        * START TIMER
        * ONLY AFTER ASTROLOGER MESSAGE
@@ -1033,6 +1105,18 @@ console.log(
                 io.to("room_" + conversation_id).emit("chat_ended", {
                   success: false,
                   message: "Insufficient balance"
+                });
+
+                await notifyPush({
+                  targetType: "user",
+                  targetId: conversation.user_id,
+                  title: "Wallet balance low",
+                  body: "Your chat ended because your wallet balance is insufficient.",
+                  data: {
+                    type: "chat_ended",
+                    conversation_id,
+                    reason: "low_balance"
+                  }
                 });
 
                 return;
@@ -1318,6 +1402,18 @@ console.log(
           message: "User ne chat end kar di"
         });
 
+        await notifyPush({
+          targetType: "astrologer",
+          targetId: astrologer_id,
+          title: "Chat ended by user",
+          body: "User has left the chat.",
+          data: {
+            type: "chat_ended",
+            conversation_id,
+            ended_by: "user"
+          }
+        });
+
         console.log(`[LEAVE] User ${user_id} left -> Astrologer ${astrologer_id} notified`);
       }
 
@@ -1338,6 +1434,18 @@ console.log(
           ended_by: "astrologer",
           conversation_id,
           message: "Astrologer ne chat end kar di"
+        });
+
+        await notifyPush({
+          targetType: "user",
+          targetId: user_id,
+          title: "Chat ended by astrologer",
+          body: "Astrologer has ended the chat.",
+          data: {
+            type: "chat_ended",
+            conversation_id,
+            ended_by: "astrologer"
+          }
         });
 
         console.log(`[LEAVE] Astrologer ${astrologer_id} left -> User ${user_id} notified`);
@@ -1401,7 +1509,7 @@ WHERE conversation_id = ?
      */
     const [convRows] = await db.query(
       `
-      SELECT astrologer_id
+      SELECT astrologer_id, user_id
       FROM chat_conversations
       WHERE conversation_id = ?
       LIMIT 1
@@ -1452,6 +1560,34 @@ if (sender_type === "astrologer" && astrologer_id) {
     ? "Astrologer disconnected"
     : "User disconnected"
 });
+
+  if (sender_type === "user") {
+    await notifyPush({
+      targetType: "astrologer",
+      targetId: astrologer_id,
+      title: "User disconnected",
+      body: "User left the chat unexpectedly.",
+      data: {
+        type: "chat_ended",
+        conversation_id,
+        reason: "disconnect",
+        ended_by: "user"
+      }
+    });
+  } else if (sender_type === "astrologer") {
+    await notifyPush({
+      targetType: "user",
+      targetId: convRows[0].user_id,
+      title: "Astrologer disconnected",
+      body: "Astrologer disconnected from the chat.",
+      data: {
+        type: "chat_ended",
+        conversation_id,
+        reason: "disconnect",
+        ended_by: "astrologer"
+      }
+    });
+  }
       // if (sender_type === "astrologer" && astrologer_id) {
       //   await setAstrologerOnlineStatus(io, astrologer_id, 0);
       // } else if (astrologer_id) {
