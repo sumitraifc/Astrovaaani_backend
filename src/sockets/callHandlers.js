@@ -1,6 +1,33 @@
 const db = require("../config/db");
 const callService = require("../modules/call/service");
 const { setAstrologerOnlineStatus } = require("./astrologerHandler");
+const { sendNotification } = require("../config/notification");
+
+async function getFcmTokenByType(type, id) {
+  const table = type === "astrologer" ? "astrologers" : "users";
+  const [rows] = await db.query(
+    `SELECT fcm_token FROM ${table} WHERE id = ? LIMIT 1`,
+    [Number(id)]
+  );
+  return rows[0]?.fcm_token || null;
+}
+
+async function notifyPush({ targetType, targetId, title, body, data = {} }) {
+  const token = await getFcmTokenByType(targetType, targetId);
+  if (!token) {
+    console.log(`[CALL FCM] No token for ${targetType} ${targetId}`);
+    return null;
+  }
+
+  try {
+    const result = await sendNotification({ token, title, body, data });
+    console.log(`[CALL FCM] Sent push to ${targetType} ${targetId}: ${title}`);
+    return result;
+  } catch (err) {
+    console.log(`[CALL FCM] Push failed for ${targetType} ${targetId}:`, err.message);
+    return null;
+  }
+}
 
 /**
  * connectedUsers — socket mapping
@@ -329,6 +356,20 @@ await db.query(
         },
       });
 
+      await notifyPush({
+        targetType: "astrologer",
+        targetId: astrologer_id,
+        title: "Incoming call",
+        body: `${user.name} is calling you (${call_type})`,
+        data: {
+          type: "call_initiated",
+          call_id: tokenData.call_id,
+          call_type,
+          user_id,
+          astrologer_id,
+        },
+      });
+
       // ── 11. DB mein ringing status ──
       await updateCallHistoryStatus(tokenData.call_id, "ringing");
 
@@ -419,6 +460,17 @@ await db.query(
                 success: true,
                 message: "Astrologer did not respond. Please try again.",
                 data: { call_id: tokenData.call_id },
+              });
+            } else {
+              await notifyPush({
+                targetType: "user",
+                targetId: user_id,
+                title: "Call timed out",
+                body: "Astrologer did not respond. Please try again.",
+                data: {
+                  type: "call_timeout",
+                  call_id: tokenData.call_id,
+                },
               });
             }
 
@@ -584,6 +636,18 @@ await db.query(
         message: "Astrologer declined the call",
         call_id,
       });
+    } else {
+      await notifyPush({
+        targetType: "user",
+        targetId: user_id,
+        title: "Call declined",
+        body: "Astrologer declined the call.",
+        data: {
+          type: "call_declined",
+          call_id,
+          astrologer_id,
+        },
+      });
     }
 
     // Astrologer online again
@@ -636,6 +700,18 @@ await db.query(
           message: "Call ended",
           data,
         });
+      } else if (user_id && Number(user_id) !== Number(astrologer_id)) {
+        await notifyPush({
+          targetType: "user",
+          targetId: user_id,
+          title: "Call ended",
+          body: "Call ended.",
+          data: {
+            type: "call_ended",
+            call_id,
+            ended_by,
+          },
+        });
       }
 
       if (astrologerSocketId && astrologerSocketId !== socket.id) {
@@ -643,6 +719,18 @@ await db.query(
           success: true,
           message: "Call ended",
           data,
+        });
+      } else if (astrologer_id) {
+        await notifyPush({
+          targetType: "astrologer",
+          targetId: astrologer_id,
+          title: "Call ended",
+          body: "Call ended.",
+          data: {
+            type: "call_ended",
+            call_id,
+            ended_by,
+          },
         });
       }
   console.log("CONNECTED USERS =>", connectedUsers);
@@ -713,6 +801,17 @@ await db.query(
           success: true,
           message: "User cancelled the call",
           data,
+        });
+      } else {
+        await notifyPush({
+          targetType: "astrologer",
+          targetId: astrologer_id,
+          title: "Call cancelled",
+          body: "User cancelled the call.",
+          data: {
+            type: "call_cancelled",
+            call_id,
+          },
         });
       }
 
@@ -785,15 +884,25 @@ await db.query(
                 : call.user_id;
 
             const otherSocketId = connectedUsers[otherUserId];
+            const otherType = Number(userId) === Number(call.user_id) ? "astrologer" : "user";
             if (otherSocketId) {
               io.to(otherSocketId).emit("call-ended", {
                 success: true,
                 message: "Other party disconnected",
                 data: { call_id: call.id },
               });
+            } else {
+              await notifyPush({
+                targetType: otherType,
+                targetId: otherUserId,
+                title: "Call disconnected",
+                body: "Other party disconnected from the call.",
+                data: {
+                  type: "call_disconnected",
+                  call_id: call.id,
+                },
+              });
             }
-
-            // Astrologer wapas online karo
             if (call.agent_id) {
               await setAstrologerOnlineStatus(io, call.agent_id, 1);
             }
