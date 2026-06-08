@@ -74,63 +74,60 @@ module.exports = (io, socket) => {
          📥 DB QUERY
          ONE USER ONLY ONCE
       ========================================= */
-      const [rows] = await db.query(`
-        SELECT
-          cc.id,
-          cc.conversation_id,
-          cc.status,
-          cc.is_user_online,
-          cc.is_astrologer_online,
-          cc.total_messages,
-          cc.duration,
-          cc.amount,
-          cc.started_at,
-          cc.last_message_at,
+  const [rows] = await db.query(`
+  SELECT
+    cc.id,
+    cc.conversation_id,
+    cc.status,
+    cc.is_user_online,
+    cc.is_astrologer_online,
+    cc.total_messages,
+    cc.duration,
+    cc.amount,
+    cc.started_at,
+    cc.last_message_at,
 
-          u.id AS user_id,
-          u.name AS user_name,
-          u.profile_image,
+    u.id AS user_id,
+    u.name AS user_name,
+    u.profile_image,
 
-          lm.message AS last_message,
-          lm.message_type,
-          lm.file_url,
-          lm.sent_at AS message_time,
+    lm.message AS last_message,
+    lm.message_type,
+    lm.file_url,
+    lm.sent_at AS message_time,
 
-          (
-            SELECT COUNT(*)
-            FROM chat_messages cm
-            WHERE cm.conversation_id = cc.conversation_id
-            AND cm.sender_type = 'user'
-            AND cm.is_read = 0
-          ) AS unread_count
+    (
+      SELECT COUNT(*)
+      FROM chat_messages cm
+      WHERE cm.conversation_id = cc.conversation_id
+        AND cm.sender_type = 'user'
+        AND cm.is_read = 0
+    ) AS unread_count
 
-        FROM chat_conversations cc
+  FROM chat_conversations cc
 
-        LEFT JOIN users u
-          ON u.id = cc.user_id
+  LEFT JOIN users u
+    ON u.id = cc.user_id
 
-        LEFT JOIN chat_messages lm
-          ON lm.id = (
-            SELECT id
-            FROM chat_messages
-            WHERE conversation_id = cc.conversation_id
-            ORDER BY id DESC
-            LIMIT 1
-          )
+  LEFT JOIN chat_messages lm
+    ON lm.id = (
+      SELECT id
+      FROM chat_messages
+      WHERE conversation_id = cc.conversation_id
+      ORDER BY id DESC
+      LIMIT 1
+    )
 
-        WHERE cc.astrologer_id = ?
-        AND cc.id IN (
-          SELECT latest_id
-          FROM (
-            SELECT MAX(id) AS latest_id
-            FROM chat_conversations
-            WHERE astrologer_id = ?
-            GROUP BY user_id
-          ) t
-        )
+  WHERE cc.astrologer_id = ?
+    AND cc.id = (
+      SELECT MAX(c2.id)
+      FROM chat_conversations c2
+      WHERE c2.user_id = cc.user_id
+        AND c2.astrologer_id = cc.astrologer_id
+    )
 
-        ORDER BY cc.last_message_at DESC
-      `, [astrologer_id, astrologer_id]);
+  ORDER BY cc.last_message_at DESC
+`, [astrologer_id]);
 
       console.log("📊 Total Unique Users:", rows.length);
 
