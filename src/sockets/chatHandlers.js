@@ -64,7 +64,7 @@ async function notifyChatRecipient({ conversation, sender_type, sender_id, messa
       conversation_id: conversation.conversation_id,
       sender_type,
       sender_id,
-      message_type: message_type || "text",
+      msg_type: message_type || "text",
       file_url: file_url || ""
     }
   });
@@ -1288,6 +1288,7 @@ console.log(
    * =========================================
    */
  socket.on("leave_room", async (data) => {
+   console.log("[LEAVE_ROOM] Event received:", data);
   try {
     const { conversation_id, sender_type } = data;
 
