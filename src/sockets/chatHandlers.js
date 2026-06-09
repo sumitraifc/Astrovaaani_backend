@@ -17,12 +17,41 @@ async function getFcmTokenByType(type, id) {
 }
 
 async function notifyPush({ targetType, targetId, title, body, data = {} }) {
+  const table = targetType === "astrologer" ? "astrologers" : "users";
   const token = await getFcmTokenByType(targetType, targetId);
-  if (!token) return null;
+  if (!token) {
+    console.log(`[FCM] No token for ${targetType} ${targetId}`);
+    return null;
+  }
   try {
     return await sendNotification({ token, title, body, data });
   } catch (err) {
     console.log(`[FCM ERROR] Push failed for ${targetType} ${targetId}:`, err.message);
+    try {
+      const preview = token ? `${token.slice(0, 8)}... (len ${token.length})` : "null";
+      console.log(`[FCM] Token preview for ${targetType} ${targetId}:`, preview);
+    } catch (e) {
+      // ignore preview errors
+    }
+
+    const msg = err.message || "";
+    const code = err.code || "";
+
+    // If token is invalid / not found on FCM, clear it from DB to avoid repeated failures
+    if (
+      msg.includes("Requested entity was not found") ||
+      msg.includes("registration token is not registered") ||
+      code === "messaging/registration-token-not-registered" ||
+      code === "messaging/invalid-registration-token"
+    ) {
+      try {
+        await db.query(`UPDATE ${table} SET fcm_token = NULL WHERE id = ?`, [targetId]);
+        console.log(`[FCM] Cleared invalid token for ${targetType} ${targetId}`);
+      } catch (e) {
+        console.log(`[FCM] Failed to clear token for ${targetType} ${targetId}:`, e.message);
+      }
+    }
+
     return null;
   }
 }
