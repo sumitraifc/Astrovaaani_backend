@@ -1,6 +1,6 @@
 const db = require("../../../config/db");
 
-exports.addReview = async (userId, data) => {
+exports.addReview = async (userId, data, connection = db) => {
 
   const {
     astrologer_id,
@@ -10,7 +10,7 @@ exports.addReview = async (userId, data) => {
     status
   } = data;
 
-  const [result] = await db.query(`
+  const [result] = await connection.query(`
     INSERT INTO astrologer_reviews
     (astrologer_id, user_id, booking_type, rating, comment, status)
     VALUES (?, ?, ?, ?, ?, ?)

@@ -592,6 +592,14 @@ await db.query(
             return;
           }
         }
+
+        await db.query(
+          `UPDATE astrologers
+           SET total_sessions = COALESCE(total_sessions,0) + 1,
+               ${call_type === "video" ? "total_video" : "total_audio"} = COALESCE(${call_type === "video" ? "total_video" : "total_audio"},0) + 1
+           WHERE id = ?`,
+          [astrologer_id]
+        );
       }
     } catch (error) {
       console.error("CALL ACCEPT ERROR =>", error);
@@ -742,13 +750,15 @@ await db.query(
       // DB: hangup
       // await updateCallHistoryStatuss(call_id, "hangup");
       const [rows] = await db.query(
-  `SELECT start_time FROM call_history WHERE id = ?`,
+  `SELECT start_time, call_type FROM call_history WHERE id = ?`,
   [call_id]
 );
 
 const startTime = rows[0]?.start_time || 0;
-
+const callType = rows[0]?.call_type || "audio";
 const duration = endTime - startTime;
+const minutes = Math.ceil(duration / 60);
+
       await updateCallHistoryStatuss(
   call_id,
   "hangup",
@@ -773,6 +783,15 @@ await db.query(
    WHERE id = ?`,
   [endTime, duration, call_id]
 );
+
+if (minutes > 0) {
+  await db.query(
+    `UPDATE astrologers
+     SET ${callType === "video" ? "total_video_minutes" : "total_audio_minutes"} = COALESCE(${callType === "video" ? "total_video_minutes" : "total_audio_minutes"},0) + ?
+     WHERE id = ?`,
+    [minutes, astrologer_id]
+  );
+}
       // Astrologer wapas online (is_online = 1)
       if (astrologer_id) {
         await setAstrologerOnlineStatus(io, astrologer_id, 1);

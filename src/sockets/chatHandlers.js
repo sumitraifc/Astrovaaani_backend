@@ -265,6 +265,15 @@ VALUES
   "pending"
 ]
 );
+
+      await db.query(
+        `UPDATE astrologers
+         SET total_sessions = COALESCE(total_sessions,0) + 1,
+             total_chats = COALESCE(total_chats,0) + 1
+         WHERE id = ?`,
+        [astrologer_id]
+      );
+
       /**
        * ASTROLOGER BUSY
        */
@@ -1231,6 +1240,13 @@ console.log(
                 WHERE conversation_id = ?
                 `,
                 [charge, conversation_id]
+              );
+
+              await db.query(
+                `UPDATE astrologers
+                 SET total_chat_minutes = COALESCE(total_chat_minutes,0) + 1
+                 WHERE id = ?`,
+                [conversation.astrologer_id]
               );
 
               /**
