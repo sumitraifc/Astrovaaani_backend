@@ -3,6 +3,7 @@ const db = require("../config/db");
 const { setAstrologerOnlineStatus } = require("./astrologerHandler");
 // const { setAstrologerOnlineStatus, setAstrologerChatStatus } = require("./astrologerHandler");
 const { sendNotification } = require("../config/notification");
+const { settleConsultationCharge } = require("../utils/settlement");
 
 const activeTimers = {};
 const onlineUsers = {};
@@ -260,7 +261,7 @@ VALUES
   astrologer_id,
   astroRows[0].name,
   "chat",
-  chargePerMin,
+  0,
   "pending"
 ]
 );
@@ -1163,26 +1164,59 @@ console.log(
                 return;
               }
 
-              /**
-               * WALLET HISTORY
-               */
-              await db.query(
-                `
-                INSERT INTO wallet_transactions
-                (
-                  user_id,
-                  type,
-                  amount,
-                  reason,
-                  created_at
-                )
-                VALUES
-                (
-                  ?, ?, ?, ?, NOW()
-                )
-                `,
-                [conversation.user_id, "debit", charge, "Chat Consultation"]
-              );
+              const settlement = await settleConsultationCharge({
+                user_id: conversation.user_id,
+                astrologer_id: conversation.astrologer_id,
+                amount: charge,
+                sessionType: "chat",
+                sessionId: conversation_id,
+                reason: "Chat Consultation"
+              });
+
+              if (!settlement.success) {
+                clearInterval(activeTimers[conversation_id]);
+                delete activeTimers[conversation_id];
+
+                await db.query(
+                  `
+                  UPDATE chat_conversations
+                  SET
+                    status = 'ended',
+                    ended_at = NOW(),
+                    is_timer_running = 0
+                  WHERE conversation_id = ?
+                  `,
+                  [conversation_id]
+                );
+
+                await db.query(
+                  `UPDATE orders
+                   SET status = 'completed', end_time = NOW()
+                   WHERE conversation_id = ?`,
+                  [conversation_id]
+                );
+
+                await setAstrologerOnlineStatus(io, conversation.astrologer_id, 1);
+
+                io.to("room_" + conversation_id).emit("chat_ended", {
+                  success: false,
+                  message: "Insufficient balance"
+                });
+
+                await notifyPush({
+                  targetType: "user",
+                  targetId: conversation.user_id,
+                  title: "Wallet balance low",
+                  body: "Your chat ended because your wallet balance is insufficient.",
+                  data: {
+                    type: "chat_ended",
+                    conversation_id,
+                    reason: "low_balance"
+                  }
+                });
+
+                return;
+              }
 
               /**
                * UPDATE CHAT

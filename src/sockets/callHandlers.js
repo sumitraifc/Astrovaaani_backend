@@ -2,6 +2,7 @@ const db = require("../config/db");
 const callService = require("../modules/call/service");
 const { setAstrologerOnlineStatus } = require("./astrologerHandler");
 const { sendNotification } = require("../config/notification");
+const { settleConsultationCharge } = require("../utils/settlement");
 
 async function getFcmTokenByType(type, id) {
   const table = type === "astrologer" ? "astrologers" : "users";
@@ -77,7 +78,8 @@ async function getAstrologerById(astrologerId) {
   audio_charge,
   video_charge,
   profile_image,
-  expertise
+  expertise,
+  commission_percent
 FROM astrologers
 WHERE id = ?
 LIMIT 1`,
@@ -317,7 +319,7 @@ await db.query(
     astrologer_id,
     astrologer.name,
     call_type,                   // "audio" ya "video"
-    perMinuteCharge,
+    0,
     "pending"
   ]
 );
@@ -546,37 +548,37 @@ await db.query(
             : Number(astrologer.audio_charge || 0);
 
         if (callCharge > 0) {
-          const deducted = await deductWalletBalance(user_id, callCharge);
+          const settlement = await settleConsultationCharge({
+            user_id,
+            astrologer_id,
+            amount: callCharge,
+            sessionType: "call",
+            sessionId: call_id,
+            reason: `${call_type} call`
+          });
 
           if (userSocketId) {
             io.to(userSocketId).emit("wallet-deducted", {
-              success: deducted,
-              message: deducted
+              success: settlement.success,
+              message: settlement.success
                 ? `₹${callCharge} deducted for ${call_type} call`
                 : "Wallet deduction failed — insufficient balance",
               data: { amount: callCharge, call_id },
             });
           }
 
-          // Deduction fail ho — call end karo
-          if (!deducted) {
-            // await updateCallHistoryStatus(call_id, "hangup");
-            await updateCallStatus(
-  call_id,
-  "hangup",
-  "insufficient_balance"
-);
-
-await db.query(
-  `
-  UPDATE orders
-  SET
-    status = 'cancelled',
-    end_time = NOW()
-  WHERE conversation_id = ?
-  `,
-  [String(call_id)]
-);
+          if (!settlement.success) {
+            await updateCallStatus(call_id, "hangup", "insufficient_balance");
+            await db.query(
+              `
+              UPDATE orders
+              SET
+                status = 'cancelled',
+                end_time = NOW()
+              WHERE conversation_id = ?
+              `,
+              [String(call_id)]
+            );
             await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
             const astrologerSocketId = connectedUsers[astrologer_id];
