@@ -1091,23 +1091,16 @@ await db.query(
                 });
               }
 
-              /**
-               * SAFE WALLET DEDUCTION
-               */
-              const [walletUpdate] = await db.query(
-                `
-                UPDATE wallet
-                SET balance = balance - ?
-                WHERE user_id = ?
-                AND balance >= ?
-                `,
-                [charge, conversation.user_id, charge]
-              );
+              const settlement = await settleConsultationCharge({
+                user_id: conversation.user_id,
+                astrologer_id: conversation.astrologer_id,
+                amount: charge,
+                sessionType: "chat",
+                sessionId: conversation_id,
+                reason: "Chat Consultation"
+              });
 
-              /**
-               * NO BALANCE
-               */
-              if (walletUpdate.affectedRows === 0) {
+              if (!settlement.success) {
                 clearInterval(activeTimers[conversation_id]);
                 delete activeTimers[conversation_id];
 
@@ -1131,28 +1124,17 @@ await db.query(
    SET status = 'completed', end_time = NOW()
    WHERE conversation_id = ?`,
   [conversation_id]
-);  
-
-                /**
-                 * ASTROLOGER ONLINE
-                 */
-                // await db.query(
-                //   `
-                //   UPDATE astrologers
-                //   SET chat_status = 'online'
-                //   WHERE id = ?
-                //   `,
-                //   [conversation.astrologer_id]
-                // );
-  await setAstrologerOnlineStatus(
-  io,
-  conversation.astrologer_id,
-  1
 );
 
-console.log(
-  `[LOW BALANCE] Astrologer ${conversation.astrologer_id} -> ONLINE`
-);
+                await setAstrologerOnlineStatus(
+                  io,
+                  conversation.astrologer_id,
+                  1
+                );
+
+                console.log(
+                  `[LOW BALANCE] Astrologer ${conversation.astrologer_id} -> ONLINE`
+                );
                 io.to("room_" + conversation_id).emit("chat_ended", {
                   success: false,
                   message: "Insufficient balance"
@@ -1172,15 +1154,6 @@ console.log(
 
                 return;
               }
-
-              const settlement = await settleConsultationCharge({
-                user_id: conversation.user_id,
-                astrologer_id: conversation.astrologer_id,
-                amount: charge,
-                sessionType: "chat",
-                sessionId: conversation_id,
-                reason: "Chat Consultation"
-              });
 
               if (!settlement.success) {
                 clearInterval(activeTimers[conversation_id]);
