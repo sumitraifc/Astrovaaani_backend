@@ -87,7 +87,9 @@ exports.verifyOtp = async (req, res) => {
 
       return res.status(401).json(result);
     }
-
+if (result.statusCode === 403) {
+  return res.status(403).json(result);
+}
     /**
      * LOGIN SUCCESS
      */
