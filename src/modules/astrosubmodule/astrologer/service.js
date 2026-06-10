@@ -195,6 +195,7 @@ exports.saveStep = async (step, id, payload) => {
   if (step === 5) {
     updateData.registration_completed = 1;
     updateData.registration_step = 5;
+    updateData.approval_status = "pending"; 
   } else if (isRejected) {
 
     const otherRejectedStep = [1,2,3,4,5].find(
