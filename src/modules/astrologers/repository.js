@@ -163,7 +163,7 @@ exports.getById = async (userId, id) => {
       u.name AS user_name,
       u.profile_image AS user_profile_image
 
-    FROM reviews r
+    FROM astrologer_reviews r
     INNER JOIN users u
       ON u.id = r.user_id
 
