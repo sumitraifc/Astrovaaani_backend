@@ -556,22 +556,32 @@ await db.query(
       // ── Wallet deduction — call start pe ──
       const astrologer = await getAstrologerById(astrologer_id);
       if (astrologer) {
+        const [callRows] = await db.query(
+          `SELECT call_type, per_minute_charge FROM call_history WHERE id = ? LIMIT 1`,
+          [call_id]
+        );
+        const savedCallType = callRows[0]?.call_type || null;
+        const savedPerMinute = Number(callRows[0]?.per_minute_charge || 0);
+        const actualCallType = call_type || savedCallType || "audio";
         const callCharge =
-          call_type === "video"
+          savedPerMinute > 0
+            ? savedPerMinute
+            : actualCallType === "video"
             ? Number(astrologer.video_charge || 0)
             : Number(astrologer.audio_charge || 0);
 
+        console.log(`[CALL-ACCEPT] Rates from DB: audio=${astrologer.audio_charge}, video=${astrologer.video_charge}`);
+        console.log(`[CALL-ACCEPT] call_type resolved to ${actualCallType}, per_minute_charge from history=${savedPerMinute}, using charge=${callCharge}`);
+        console.log(`[CALL-ACCEPT] Deducting charge: ${callCharge} from user ${user_id}`);
+        
         if (callCharge > 0) {
-          console.log(`[CALL-ACCEPT] Rates from DB: audio=${astrologer.audio_charge}, video=${astrologer.video_charge}`);
-          console.log(`[CALL-ACCEPT] Deducting charge: ${callCharge} from user ${user_id}`);
-          
           const settlement = await settleConsultationCharge({
             user_id,
             astrologer_id,
             amount: callCharge,
             sessionType: "call",
             sessionId: call_id,
-            reason: `${call_type} call`
+            reason: `${actualCallType} call`
           });
 
           console.log(`[CALL-ACCEPT] Settlement result:`, settlement);
@@ -580,7 +590,7 @@ await db.query(
             io.to(userSocketId).emit("wallet-deducted", {
               success: settlement.success,
               message: settlement.success
-                ? `₹${callCharge} deducted for ${call_type} call`
+                ? `₹${callCharge} deducted for ${actualCallType} call`
                 : "Wallet deduction failed — insufficient balance",
               data: { amount: callCharge, call_id },
             });
@@ -616,7 +626,7 @@ await db.query(
         await db.query(
           `UPDATE astrologers
            SET total_sessions = COALESCE(total_sessions,0) + 1,
-               ${call_type === "video" ? "total_video" : "total_audio"} = COALESCE(${call_type === "video" ? "total_video" : "total_audio"},0) + 1
+               ${actualCallType === "video" ? "total_video" : "total_audio"} = COALESCE(${actualCallType === "video" ? "total_video" : "total_audio"},0) + 1
            WHERE id = ?`,
           [astrologer_id]
         );
@@ -770,12 +780,13 @@ await db.query(
       // DB: hangup
       // await updateCallHistoryStatuss(call_id, "hangup");
       const [rows] = await db.query(
-  `SELECT start_time, call_type FROM call_history WHERE id = ?`,
+  `SELECT start_time, call_type, per_minute_charge FROM call_history WHERE id = ? LIMIT 1`,
   [call_id]
 );
 
 const startTime = rows[0]?.start_time || 0;
 const callType = rows[0]?.call_type || "audio";
+let perMinute = Number(rows[0]?.per_minute_charge || 0);
 const duration = endTime - startTime;
 const minutes = Math.ceil(duration / 60);
 
@@ -786,29 +797,34 @@ const minutes = Math.ceil(duration / 60);
     ? "astrologer_ended"
     : "user_ended"
 );
-// Compute final price and update order
-const [perRows] = await db.query(`SELECT per_minute_charge FROM call_history WHERE id = ? LIMIT 1`, [call_id]);
-const perMinute = Number(perRows[0]?.per_minute_charge || 0);
-const totalPrice = Number((perMinute * minutes).toFixed(2));
-await db.query(
-  `
-  UPDATE orders
-  SET
-    price = ?,
-    status = 'completed',
-    end_time = NOW()
-  WHERE conversation_id = ?
-  `,
-  [totalPrice, String(call_id)]
-);
-console.log(`[CALL-END] Order ${call_id} updated: minutes=${minutes}, per_min=${perMinute}, total=${totalPrice}`);
 
-await db.query(
-  `UPDATE call_history 
-   SET end_time = ?, duration = ?
-   WHERE id = ?`,
-  [endTime, duration, call_id]
-);
+      const astrologer = await getAstrologerById(astrologer_id);
+      if (perMinute <= 0 && astrologer) {
+        perMinute = callType === "video"
+          ? Number(astrologer.video_charge || 0)
+          : Number(astrologer.audio_charge || 0);
+      }
+
+      const totalPrice = Number((perMinute * minutes).toFixed(2));
+      await db.query(
+        `
+        UPDATE orders
+        SET
+          price = ?,
+          status = 'completed',
+          end_time = NOW()
+        WHERE conversation_id = ?
+        `,
+        [totalPrice, String(call_id)]
+      );
+      console.log(`[CALL-END] Order ${call_id} updated: minutes=${minutes}, callType=${callType}, per_min=${perMinute}, total=${totalPrice}`);
+
+      await db.query(
+        `UPDATE call_history 
+         SET end_time = ?, duration = ?
+         WHERE id = ?`,
+        [endTime, duration, call_id]
+      );
 
 if (minutes > 0) {
   await db.query(
@@ -916,14 +932,21 @@ await db.query(
             await updateCallHistoryStatus(call.id, "disconnect");
             // Compute final price and update order based on per_minute_charge * minutes (if available)
             try {
-              const [callRow] = await db.query(`SELECT per_minute_charge, start_time, end_time, duration FROM call_history WHERE id = ? LIMIT 1`, [call.id]);
-              const perMinute = Number(callRow[0]?.per_minute_charge || 0);
-              let totalPrice = 0;
-              if (callRow[0]) {
-                const dur = Number(callRow[0].duration || 0);
-                const mins = Math.ceil((dur || 0) / 60);
-                totalPrice = Number((perMinute * mins).toFixed(2));
+              const [callRow] = await db.query(`SELECT call_type, per_minute_charge, start_time, duration FROM call_history WHERE id = ? LIMIT 1`, [call.id]);
+              const callType = callRow[0]?.call_type || "audio";
+              let perMinute = Number(callRow[0]?.per_minute_charge || 0);
+              const startTime = Number(callRow[0]?.start_time || 0);
+              const recordedDuration = Number(callRow[0]?.duration || 0);
+              const now = Math.floor(Date.now() / 1000);
+              const dur = recordedDuration > 0 ? recordedDuration : Math.max(0, now - startTime);
+              const mins = Math.ceil(dur / 60);
+              if (perMinute <= 0) {
+                const astro = await getAstrologerById(call.agent_id);
+                perMinute = callType === "video"
+                  ? Number(astro?.video_charge || 0)
+                  : Number(astro?.audio_charge || 0);
               }
+              const totalPrice = Number((perMinute * mins).toFixed(2));
               await db.query(
                 `
                 UPDATE orders
@@ -935,7 +958,7 @@ await db.query(
                 `,
                 [totalPrice, String(call.id)]
               );
-              console.log(`[CALL-DISCONNECT] Order ${call.id} updated: price=${totalPrice}`);
+              console.log(`[CALL-DISCONNECT] Order ${call.id} updated: minutes=${mins}, callType=${callType}, per_min=${perMinute}, total=${totalPrice}`);
             } catch (e) {
               console.log(`[CALL-DISCONNECT] Failed to update order price for ${call.id}:`, e.message);
             }
