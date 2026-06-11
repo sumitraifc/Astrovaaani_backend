@@ -621,6 +621,131 @@ await db.query(
             }
             return;
           }
+
+          if (!activeCallBillingTimers[call_id]) {
+            activeCallBillingTimers[call_id] = setInterval(async () => {
+              try {
+                const [historyRows] = await db.query(
+                  `SELECT status, call_type, per_minute_charge, start_time FROM call_history WHERE id = ? LIMIT 1`,
+                  [call_id]
+                );
+
+                if (!historyRows[0] || historyRows[0].status !== "answered") {
+                  clearCallBillingTimer(call_id);
+                  return;
+                }
+
+                const recurringCallType = historyRows[0]?.call_type || actualCallType;
+                let recurringCharge = Number(historyRows[0]?.per_minute_charge || 0);
+                if (recurringCharge <= 0) {
+                  recurringCharge = recurringCallType === "video"
+                    ? Number(astrologer.video_charge || 0)
+                    : Number(astrologer.audio_charge || 0);
+                }
+
+                const walletBalance = await getWalletBalance(user_id);
+                if (walletBalance < recurringCharge) {
+                  console.log(`[CALL-BILLING] Low balance detected for call ${call_id}: balance=${walletBalance}, required=${recurringCharge}`);
+                  clearCallBillingTimer(call_id);
+
+                  const endTime = Math.floor(Date.now() / 1000);
+                  const [existingCall] = await db.query(
+                    `SELECT start_time FROM call_history WHERE id = ? LIMIT 1`,
+                    [call_id]
+                  );
+                  const startTime = Number(existingCall[0]?.start_time || endTime);
+                  const duration = endTime - startTime;
+                  const minutes = Math.ceil(duration / 60);
+                  const totalPrice = Number((recurringCharge * minutes).toFixed(2));
+
+                  await updateCallHistoryStatuss(call_id, "hangup", "insufficient_balance");
+                  await db.query(
+                    `UPDATE call_history SET end_time = ?, duration = ? WHERE id = ?`,
+                    [endTime, duration, call_id]
+                  );
+                  await db.query(
+                    `UPDATE orders SET price = ?, status = 'completed', end_time = NOW() WHERE conversation_id = ?`,
+                    [totalPrice, String(call_id)]
+                  );
+                  await setAstrologerOnlineStatus(io, astrologer_id, 1);
+
+                  const userSocketId = connectedUsers[user_id];
+                  const astrologerSocketId = connectedUsers[astrologer_id];
+                  if (userSocketId) {
+                    io.to(userSocketId).emit("call-ended", {
+                      success: false,
+                      message: "Call ended because wallet balance is insufficient.",
+                      data: { call_id, reason: "insufficient_balance" },
+                    });
+                  }
+                  if (astrologerSocketId) {
+                    io.to(astrologerSocketId).emit("call-ended", {
+                      success: true,
+                      message: "Call ended because user wallet balance is insufficient.",
+                      data: { call_id, reason: "insufficient_balance" },
+                    });
+                  }
+                  return;
+                }
+
+                const recurringSettlement = await settleConsultationCharge({
+                  user_id,
+                  astrologer_id,
+                  amount: recurringCharge,
+                  sessionType: "call",
+                  sessionId: call_id,
+                  reason: `${recurringCallType} call`
+                });
+
+                console.log(`[CALL-BILLING] Recurring settlement for call ${call_id}:`, recurringSettlement);
+
+                if (!recurringSettlement.success) {
+                  console.log(`[CALL-BILLING] Recurring settlement failed for call ${call_id}`);
+                  clearCallBillingTimer(call_id);
+
+                  const endTime = Math.floor(Date.now() / 1000);
+                  const [existingCall] = await db.query(
+                    `SELECT start_time FROM call_history WHERE id = ? LIMIT 1`,
+                    [call_id]
+                  );
+                  const startTime = Number(existingCall[0]?.start_time || endTime);
+                  const duration = endTime - startTime;
+                  const minutes = Math.ceil(duration / 60);
+                  const totalPrice = Number((recurringCharge * minutes).toFixed(2));
+
+                  await updateCallHistoryStatuss(call_id, "hangup", "insufficient_balance");
+                  await db.query(
+                    `UPDATE call_history SET end_time = ?, duration = ? WHERE id = ?`,
+                    [endTime, duration, call_id]
+                  );
+                  await db.query(
+                    `UPDATE orders SET price = ?, status = 'completed', end_time = NOW() WHERE conversation_id = ?`,
+                    [totalPrice, String(call_id)]
+                  );
+                  await setAstrologerOnlineStatus(io, astrologer_id, 1);
+
+                  const userSocketId = connectedUsers[user_id];
+                  const astrologerSocketId = connectedUsers[astrologer_id];
+                  if (userSocketId) {
+                    io.to(userSocketId).emit("call-ended", {
+                      success: false,
+                      message: "Call ended because wallet charge could not be processed.",
+                      data: { call_id, reason: "billing_failed" },
+                    });
+                  }
+                  if (astrologerSocketId) {
+                    io.to(astrologerSocketId).emit("call-ended", {
+                      success: true,
+                      message: "Call ended because user wallet charge could not be processed.",
+                      data: { call_id, reason: "billing_failed" },
+                    });
+                  }
+                }
+              } catch (timerError) {
+                console.error(`[CALL-BILLING] Error for call ${call_id}:`, timerError);
+              }
+            }, 60000);
+          }
         }
 
         await db.query(
@@ -729,6 +854,7 @@ await db.query(
         clearTimeout(activeCallTimeouts[call_id]);
         delete activeCallTimeouts[call_id];
       }
+      clearCallBillingTimer(call_id);
 
       // DONO sides ko emit karo (jo bhi end kare, doosre ko bhi jaaye)
       const userSocketId = connectedUsers[user_id];
@@ -929,6 +1055,7 @@ await db.query(
             const call = activeCalls[0];
 
             // DB: disconnect
+            clearCallBillingTimer(call.id);
             await updateCallHistoryStatus(call.id, "disconnect");
             // Compute final price and update order based on per_minute_charge * minutes (if available)
             try {
