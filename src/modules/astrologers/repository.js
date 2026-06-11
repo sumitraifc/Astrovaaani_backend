@@ -133,21 +133,25 @@ exports.getById = async (userId, id) => {
   const data = rows[0];
 
   // Expertise
-  const [expertise] = await db.query(
-    `
-    SELECT
-      em.id,
-      em.name,
-      em.image
-    FROM astrologer_expertise ae
-    INNER JOIN expertise_master em
-      ON em.id = ae.expertise_id
-    WHERE ae.astrologer_id = ?
-    `,
-    [id]
-  );
+  // const [expertise] = await db.query(
+  //   `
+  //   SELECT
+  //     em.id,
+  //     em.name,
+  //     em.image
+  //   FROM astrologer_expertise ae
+  //   INNER JOIN expertise_master em
+  //     ON em.id = ae.expertise_id
+  //   WHERE ae.astrologer_id = ?
+  //   `,
+  //   [id]
+  // );
 
-  data.expertise = expertise || [];
+data.expertise = data.expertise
+  ? data.expertise.split(",").map(item => item.trim())
+  : [];
+
+  // data.expertise = expertise || [];
 
   // Reviews
   const [reviews] = await db.query(
