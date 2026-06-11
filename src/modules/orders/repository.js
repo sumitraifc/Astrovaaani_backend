@@ -42,6 +42,7 @@ exports.create = async (data) => {
 
 //   return rows;
 // };
+
 exports.getAll = async (userId) => {
   const [rows] = await db.query(
     `

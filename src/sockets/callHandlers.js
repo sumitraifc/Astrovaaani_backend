@@ -562,6 +562,7 @@ await db.query(
             : Number(astrologer.audio_charge || 0);
 
         if (callCharge > 0) {
+          console.log(`[CALL-ACCEPT] Rates from DB: audio=${astrologer.audio_charge}, video=${astrologer.video_charge}`);
           console.log(`[CALL-ACCEPT] Deducting charge: ${callCharge} from user ${user_id}`);
           
           const settlement = await settleConsultationCharge({
@@ -785,16 +786,22 @@ const minutes = Math.ceil(duration / 60);
     ? "astrologer_ended"
     : "user_ended"
 );
+// Compute final price and update order
+const [perRows] = await db.query(`SELECT per_minute_charge FROM call_history WHERE id = ? LIMIT 1`, [call_id]);
+const perMinute = Number(perRows[0]?.per_minute_charge || 0);
+const totalPrice = Number((perMinute * minutes).toFixed(2));
 await db.query(
   `
   UPDATE orders
   SET
+    price = ?,
     status = 'completed',
     end_time = NOW()
   WHERE conversation_id = ?
   `,
-  [String(call_id)]
+  [totalPrice, String(call_id)]
 );
+console.log(`[CALL-END] Order ${call_id} updated: minutes=${minutes}, per_min=${perMinute}, total=${totalPrice}`);
 
 await db.query(
   `UPDATE call_history 
@@ -907,16 +914,31 @@ await db.query(
 
             // DB: disconnect
             await updateCallHistoryStatus(call.id, "disconnect");
-               await db.query(
-  `
-  UPDATE orders
-  SET
-    status = 'completed',
-    end_time = NOW()
-  WHERE conversation_id = ?
-  `,
-  [String(call.id)]
-);
+            // Compute final price and update order based on per_minute_charge * minutes (if available)
+            try {
+              const [callRow] = await db.query(`SELECT per_minute_charge, start_time, end_time, duration FROM call_history WHERE id = ? LIMIT 1`, [call.id]);
+              const perMinute = Number(callRow[0]?.per_minute_charge || 0);
+              let totalPrice = 0;
+              if (callRow[0]) {
+                const dur = Number(callRow[0].duration || 0);
+                const mins = Math.ceil((dur || 0) / 60);
+                totalPrice = Number((perMinute * mins).toFixed(2));
+              }
+              await db.query(
+                `
+                UPDATE orders
+                SET
+                  price = ?,
+                  status = 'completed',
+                  end_time = NOW()
+                WHERE conversation_id = ?
+                `,
+                [totalPrice, String(call.id)]
+              );
+              console.log(`[CALL-DISCONNECT] Order ${call.id} updated: price=${totalPrice}`);
+            } catch (e) {
+              console.log(`[CALL-DISCONNECT] Failed to update order price for ${call.id}:`, e.message);
+            }
             // Doosri party ko notify karo
             const otherUserId =
               Number(userId) === Number(call.user_id)

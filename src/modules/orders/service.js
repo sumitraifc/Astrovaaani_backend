@@ -19,7 +19,7 @@ exports.createOrder = async (userId, data) => {
 
 exports.getOrders = async (userId) => {
   const orders = await repo.getAll(userId);
-
+   console.log("orders in service :",orders);
   return {
     success: true,
     orders
