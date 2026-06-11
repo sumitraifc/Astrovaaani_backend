@@ -38,6 +38,7 @@ exports.getFavorites = async (userId) => {
     `
     SELECT
       f.id,
+
       a.id AS astrologer_id,
       a.name,
       a.profile_image,
@@ -45,12 +46,15 @@ exports.getFavorites = async (userId) => {
       a.chat_charge,
       a.audio_charge,
       a.video_charge,
-      a.is_online
+      a.is_online,
+      a.languages,
+      a.expertise
+
     FROM favorites f
     JOIN astrologers a ON a.id = f.astrologer_id
     WHERE f.user_id = ?
     ORDER BY f.id DESC
-  `,
+    `,
     [userId]
   );
 

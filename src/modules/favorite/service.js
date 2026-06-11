@@ -24,16 +24,34 @@ exports.addFavorite = async (userId, astrologerId) => {
 /**
  * GET FAVORITES
  */
+// exports.getFavorites = async (userId) => {
+//   const favorites = await repo.getFavorites(userId);
+
+//   return {
+//     success: true,
+//     total: favorites.length,
+//     data: favorites
+//   };
+// };
 exports.getFavorites = async (userId) => {
   const favorites = await repo.getFavorites(userId);
 
+  const data = favorites.map(item => ({
+    ...item,
+
+    profile_image: item.profile_image
+      ? `${process.env.BASE_URL}/uploads/${item.profile_image}`
+      : null,
+
+    is_favourite: true
+  }));
+
   return {
     success: true,
-    total: favorites.length,
-    data: favorites
+    total: data.length,
+    data
   };
 };
-
 /**
  * REMOVE FAVORITE
  */
