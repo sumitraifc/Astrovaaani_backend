@@ -123,14 +123,26 @@ exports.getById = async (userId, id) => {
       a.video_charge,
       a.is_online,
       a.status AS astrologer_status,
-      a.about
+      a.about,
+
+      -- FAVOURITE FLAG
+      CASE 
+        WHEN f.id IS NOT NULL THEN TRUE 
+        ELSE FALSE 
+      END AS is_favourite
 
     FROM orders o
     LEFT JOIN astrologers a ON a.id = o.astrologer_id
+
+    LEFT JOIN favorites f 
+      ON f.astrologer_id = o.astrologer_id 
+      AND f.user_id = ?
+
     WHERE o.id = ? AND o.user_id = ?
     `,
-    [id, userId]
+    [userId, id, userId]
   );
 
-  return rows[0];
+  const data = rows[0];
+  return data;
 };

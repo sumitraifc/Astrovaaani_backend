@@ -43,6 +43,17 @@ exports.getOrders = async (userId) => {
 
 exports.getOrderById = async (userId, id) => {
   const order = await repo.getById(userId, id);
+  
+  if (!order) {
+    return {
+      success: false,
+      message: "Order not found"
+    };
+  }
+  // profile image full URL
+  order.profile_image = order.profile_image
+    ? `${process.env.BASE_URL}/uploads/${order.profile_image}`
+    : null;
 
   return {
     success: true,
