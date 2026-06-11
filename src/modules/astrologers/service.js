@@ -43,12 +43,12 @@ exports.getAstrologerById = async (userId, astrologerId) => {
     astrologer.profile_image =
       `${process.env.BASE_URL}/uploads/${astrologer.profile_image}`;
   }
-
+console.log("astrolager details api :",astrologer);
   return {
     success: true,
     astrologer
   };
-  console.log("astrolager details api :",astrologer);
+  
 };
 
 exports.updateAstrologer = async (id, data) => {

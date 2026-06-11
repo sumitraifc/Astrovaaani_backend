@@ -56,15 +56,9 @@ exports.getAll = async () => {
   return rows;
 };
 
-// exports.getById = async (id) => {
 
-//   const [rows] = await db.query(
-//     "SELECT * FROM astrologers WHERE id=?",
-//     [id]
-//   );
 
-//   return rows[0];
-// };
+
 
 
 // exports.getById = async (userId, id) => {
@@ -72,20 +66,44 @@ exports.getAll = async () => {
 //     `
 //     SELECT 
 //       a.*,
+
 //       IF(? IS NULL, 0,
 //         IF(f.id IS NOT NULL, 1, 0)
 //       ) AS is_favourite
+
 //     FROM astrologers a
+
 //     LEFT JOIN favorites f 
 //       ON f.astrologer_id = a.id 
 //       AND f.user_id = ?
+
 //     WHERE a.id = ?
 //     `,
 //     [userId, userId, id]
 //   );
 
-//   return rows[0];
+//   const data = rows[0];
+
+//   // separate simple query for expertise
+//   const [expertise] = await db.query(
+//     `
+//     SELECT 
+//       em.id,
+//       em.name,
+//       em.image
+//     FROM astrologer_expertise ae
+//     INNER JOIN expertise_master em 
+//       ON em.id = ae.expertise_id
+//     WHERE ae.astrologer_id = ?
+//     `,
+//     [id]
+//   );
+
+//   data.expertise = expertise || [];
+
+//   return data;
 // };
+
 
 exports.getById = async (userId, id) => {
   const [rows] = await db.query(
@@ -99,8 +117,8 @@ exports.getById = async (userId, id) => {
 
     FROM astrologers a
 
-    LEFT JOIN favorites f 
-      ON f.astrologer_id = a.id 
+    LEFT JOIN favorites f
+      ON f.astrologer_id = a.id
       AND f.user_id = ?
 
     WHERE a.id = ?
@@ -108,17 +126,21 @@ exports.getById = async (userId, id) => {
     [userId, userId, id]
   );
 
+  if (!rows.length) {
+    return null;
+  }
+
   const data = rows[0];
 
-  // separate simple query for expertise
+  // Expertise
   const [expertise] = await db.query(
     `
-    SELECT 
+    SELECT
       em.id,
       em.name,
       em.image
     FROM astrologer_expertise ae
-    INNER JOIN expertise_master em 
+    INNER JOIN expertise_master em
       ON em.id = ae.expertise_id
     WHERE ae.astrologer_id = ?
     `,
@@ -126,6 +148,39 @@ exports.getById = async (userId, id) => {
   );
 
   data.expertise = expertise || [];
+
+  // Reviews
+  const [reviews] = await db.query(
+    `
+    SELECT
+      r.id,
+      r.rating,
+      r.comment,
+      r.booking_type,
+      r.created_at,
+
+      u.id AS user_id,
+      u.name AS user_name,
+      u.profile_image AS user_profile_image
+
+    FROM reviews r
+    INNER JOIN users u
+      ON u.id = r.user_id
+
+    WHERE r.astrologer_id = ?
+      AND r.status = 'published'
+
+    ORDER BY r.created_at DESC
+    `,
+    [id]
+  );
+
+  data.reviews = reviews.map(review => ({
+    ...review,
+    user_profile_image: review.user_profile_image
+      ? `${process.env.BASE_URL}/uploads/${review.user_profile_image}`
+      : null
+  }));
 
   return data;
 };
