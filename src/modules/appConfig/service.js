@@ -26,6 +26,8 @@ exports.getConfig = async () => {
       title: item.title,
       url: item.content,
       image: item.image
+  ? `${process.env.BASE_URL}/uploads/${item.image}`
+  : null
     }))
   };
 };

@@ -272,6 +272,7 @@ exports.getMembers = async (user_id) => {
       dob,
       birth_time,
       birth_place,
+      'self' AS relation,
       'self' AS member_type
     FROM users
     WHERE id = ?
@@ -286,11 +287,14 @@ exports.getMembers = async (user_id) => {
       dob,
       birth_time,
       birth_place,
+      relation,
       'family' AS member_type
     FROM user_family_members
     WHERE user_id = ?
 
-    ORDER BY member_type DESC, id DESC
+    ORDER BY 
+      CASE member_type WHEN 'self' THEN 1 ELSE 2 END,
+      id DESC
     `,
     [user_id, user_id]
   );
