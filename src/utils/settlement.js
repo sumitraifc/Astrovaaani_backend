@@ -76,16 +76,8 @@ async function settleConsultationCharge({
       console.log(`[SETTLEMENT] Call history update:`, callUpdate);
     }
 
-    const [orderUpdate] = await connection.query(
-      `UPDATE orders SET price = COALESCE(price, 0) + ?, status = 'pending' WHERE conversation_id = ?`,
-      [amount, String(sessionId)]
-    );
-    
-    console.log(`[SETTLEMENT] Order update result:`, orderUpdate);
-    if (orderUpdate.affectedRows === 0) {
-      console.log(`[SETTLEMENT] ⚠️ WARNING: No order found for conversation_id=${sessionId}`);
-    }
-
+    // NOTE: Do NOT update `orders` here per-minute; orders should record final total
+    // Order price will be set once the session ends (chat or call). Commit transaction.
     await connection.commit();
     console.log(`[SETTLEMENT] ✅ Settlement completed successfully`);
     
