@@ -276,9 +276,38 @@ exports.addMember = async (data) => {
 };
 
 exports.getMembers = async (user_id) => {
+
   const [rows] = await pool.query(
-    `SELECT * FROM user_family_members WHERE user_id=? ORDER BY id DESC`,
-    [user_id]
+    `
+    SELECT
+      id,
+      name,
+      profile_image,
+      gender,
+      dob,
+      birth_time,
+      birth_place,
+      'self' AS member_type
+    FROM users
+    WHERE id = ?
+
+    UNION ALL
+
+    SELECT
+      id,
+      name,
+      NULL AS profile_image,
+      gender,
+      dob,
+      birth_time,
+      birth_place,
+      'family' AS member_type
+    FROM user_family_members
+    WHERE user_id = ?
+
+    ORDER BY member_type DESC, id DESC
+    `,
+    [user_id, user_id]
   );
 
   return rows;
