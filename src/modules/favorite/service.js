@@ -43,7 +43,7 @@ exports.getFavorites = async (userId) => {
       ? `${process.env.BASE_URL}/uploads/${item.profile_image}`
       : null,
 
-    is_favourite: true
+    // is_favourite: true
   }));
 
   return {

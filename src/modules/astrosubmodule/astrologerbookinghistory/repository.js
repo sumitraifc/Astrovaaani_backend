@@ -30,28 +30,30 @@ exports.getSummary = async (astrologerId) => {
   const [callStats] = await db.query(`
     SELECT
       COUNT(*) as total_bookings,
-      SUM(status='completed') as total_completed,
-      SUM(status='cancelled') as total_cancelled,
+
+      SUM(status IN ('answered','hangup')) as total_completed,
+      SUM(status IN ('decline','unanswered')) as total_cancelled,
+
       SUM(call_type='audio') as total_audio,
       SUM(call_type='video') as total_video
+
     FROM call_history
     WHERE agent_id = ?
   `, [astrologerId]);
 
   const [chatStats] = await db.query(`
-    SELECT
-      COUNT(*) as total_chat
+    SELECT COUNT(*) as total_chat
     FROM chat_conversations
     WHERE astrologer_id = ?
   `, [astrologerId]);
 
   return {
-    total_bookings: callStats[0].total_bookings,
-    total_completed: callStats[0].total_completed,
-    total_cancelled: callStats[0].total_cancelled,
-    total_audio_calls: callStats[0].total_audio,
-    total_video_calls: callStats[0].total_video,
-    total_chat_sessions: chatStats[0].total_chat
+    total_bookings: Number(callStats[0].total_bookings),
+    total_completed: Number(callStats[0].total_completed),
+    total_cancelled: Number(callStats[0].total_cancelled),
+    total_audio_calls: Number(callStats[0].total_audio),
+    total_video_calls: Number(callStats[0].total_video),
+    total_chat_sessions: Number(chatStats[0].total_chat)
   };
 };
 
@@ -65,7 +67,38 @@ exports.getHistory = async (astrologerId, query) => {
 
   const history = [];
 
+  // =========================
+  // STATUS MAPPING (IMPORTANT)
+  // =========================
+  let callStatusCondition = "";
+  let callStatusParams = [];
+
+  if (status) {
+    if (status === "completed") {
+      callStatusCondition = "AND c.status IN ('answered','hangup')";
+    } else if (status === "cancelled") {
+      callStatusCondition = "AND c.status IN ('decline','unanswered','disconnect')";
+    } else {
+      callStatusCondition = "AND c.status = ?";
+      callStatusParams.push(status);
+    }
+  }
+
+  let chatStatusCondition = "";
+  let chatStatusParams = [];
+
+  if (status) {
+    if (status === "completed") {
+      chatStatusCondition = "AND c.status = 'ended'";
+    } else {
+      chatStatusCondition = "AND c.status = ?";
+      chatStatusParams.push(status);
+    }
+  }
+
+  // =========================
   // CALL HISTORY
+  // =========================
   if (!type || type === "audio" || type === "video" || type === "call") {
 
     const callFilter = buildDateFilter(from, to, "created_at");
@@ -85,13 +118,13 @@ exports.getHistory = async (astrologerId, query) => {
       WHERE c.agent_id = ?
       ${type === "audio" ? "AND c.call_type='audio'" : ""}
       ${type === "video" ? "AND c.call_type='video'" : ""}
-      ${status ? "AND c.status=?" : ""}
+      ${callStatusCondition}
       ${callFilter.sql}
       ORDER BY c.created_at DESC
     `,
       [
         astrologerId,
-        ...(status ? [status] : []),
+        ...callStatusParams,
         ...callFilter.params
       ]
     );
@@ -102,15 +135,17 @@ exports.getHistory = async (astrologerId, query) => {
         user_name: row.user_name,
         type: row.call_type,
         source: "call",
-        amount: Number(row.amount),
-        duration: row.duration,
+        amount: Number(row.amount || 0),
+        duration: Number(row.duration || 0),
         status: row.status,
         date: row.created_at
       });
     });
   }
 
+  // =========================
   // CHAT HISTORY
+  // =========================
   if (!type || type === "chat") {
 
     const chatFilter = buildDateFilter(from, to, "created_at");
@@ -127,13 +162,13 @@ exports.getHistory = async (astrologerId, query) => {
       FROM chat_conversations c
       LEFT JOIN users u ON u.id = c.user_id
       WHERE c.astrologer_id = ?
-      ${status ? "AND c.status=?" : ""}
+      ${chatStatusCondition}
       ${chatFilter.sql}
       ORDER BY c.created_at DESC
     `,
       [
         astrologerId,
-        ...(status ? [status] : []),
+        ...chatStatusParams,
         ...chatFilter.params
       ]
     );
@@ -144,15 +179,17 @@ exports.getHistory = async (astrologerId, query) => {
         user_name: row.user_name,
         type: "chat",
         source: "chat",
-        amount: Number(row.amount),
-        duration: row.duration,
+        amount: Number(row.amount || 0),
+        duration: Number(row.duration || 0),
         status: row.status,
         date: row.created_at
       });
     });
   }
 
-  // sort final
+  // =========================
+  // FINAL SORT
+  // =========================
   history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   return history;
