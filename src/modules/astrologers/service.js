@@ -39,10 +39,16 @@ exports.getAstrologers = async () => {
 exports.getAstrologerById = async (userId, astrologerId) => {
   const astrologer = await repo.getById(userId, astrologerId);
 
+   if (astrologer?.profile_image) {
+    astrologer.profile_image =
+      `${process.env.BASE_URL}/uploads/${astrologer.profile_image}`;
+  }
+
   return {
     success: true,
     astrologer
   };
+  console.log("astrolager details api :",astrologer);
 };
 
 exports.updateAstrologer = async (id, data) => {
