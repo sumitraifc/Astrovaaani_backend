@@ -4,8 +4,9 @@ exports.getConfig = async () => {
   const privacy = await repo.findByType("privacy_policy");
   const terms = await repo.findByType("terms_conditions");
   const contact = await repo.findByType("contact_us");
-
   const faqData = await repo.findByType("faq");
+
+  const support = await repo.getSupportLinks();
 
   return {
     privacy_policy: privacy || null,
@@ -17,7 +18,14 @@ exports.getConfig = async () => {
           ...faqData,
           content: JSON.parse(faqData.content || "[]")
         }
-      : null
+      : null,
+
+    // ✅ NEW SUPPORT FORMAT
+    support: support.map(item => ({
+      key: item.meta_key,
+      title: item.title,
+      url: item.content
+    }))
   };
 };
 

@@ -27,3 +27,14 @@ exports.getBanners = async () => {
 
   return rows;
 };
+
+
+exports.getSupportLinks = async () => {
+  const [rows] = await db.query(`
+    SELECT meta_key, title, content
+    FROM app_contents
+    WHERE type='support' AND status='active'
+  `);
+
+  return rows;
+};

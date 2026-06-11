@@ -184,67 +184,50 @@ exports.updateProfile = async (id, data, profileImage) => {
 
 exports.addMember = async (data) => {
   try {
-    // safety trim
+
     data.name = data.name?.trim();
-
-    /**
-     * CHECK EXISTING MEMBER
-     */
-    const [existing] = await pool.query(
-      `
-      SELECT id
-      FROM user_family_members
-      WHERE user_id = ?
-        AND name = ?
-        AND dob = ?
-      LIMIT 1
-      `,
-      [
-        data.user_id,
-        data.name,
-        data.dob
-      ]
-    );
-
-    /**
-     * =========================
-     * UPDATE FLOW
-     * =========================
-     */
-    if (existing.length > 0) {
+const memberId = Number(data.id) || null;
+    // =========================
+    // UPDATE FLOW (ID EXISTS)
+    // =========================
+    // if (data.id) {
+    if (memberId) {
 
       const [updateResult] = await pool.query(
         `
         UPDATE user_family_members
         SET
+          name = ?,
           relation = ?,
           gender = ?,
+          dob = ?,
           birth_time = ?,
           birth_place = ?,
           updated_at = NOW()
-        WHERE id = ?
+        WHERE memberId = ? AND user_id = ?
         `,
         [
+          data.name,
           data.relation,
           data.gender,
+          data.dob,
           data.birth_time,
           data.birth_place,
-          existing[0].id
+          data.id,
+          data.user_id
         ]
       );
 
       return {
         action: "update",
-        member_id: existing[0].id,
+        member_id: data.id,
         result: updateResult
       };
     }
 
-    /**
-     * =========================
-     * INSERT FLOW
-     * =========================
-     */
+    // =========================
+    // INSERT FLOW (NO ID)
+    // =========================
     const [insertResult] = await pool.query(
       `
       INSERT INTO user_family_members
