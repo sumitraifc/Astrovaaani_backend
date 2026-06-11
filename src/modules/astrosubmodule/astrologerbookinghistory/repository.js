@@ -32,10 +32,10 @@ exports.getSummary = async (astrologerId) => {
       COUNT(*) as total_bookings,
 
       SUM(status IN ('answered','hangup')) as total_completed,
-      SUM(status IN ('decline','unanswered')) as total_cancelled,
+      SUM(status IN ('decline','unanswered','disconnect')) as total_cancelled,
 
-      SUM(call_type='audio') as total_audio,
-      SUM(call_type='video') as total_video
+      SUM(call_type = 'audio') as total_audio,
+      SUM(call_type = 'video') as total_video
 
     FROM call_history
     WHERE agent_id = ?
@@ -45,15 +45,16 @@ exports.getSummary = async (astrologerId) => {
     SELECT COUNT(*) as total_chat
     FROM chat_conversations
     WHERE astrologer_id = ?
+      AND status = 'ended'
   `, [astrologerId]);
 
   return {
-    total_bookings: Number(callStats[0].total_bookings),
-    total_completed: Number(callStats[0].total_completed),
-    total_cancelled: Number(callStats[0].total_cancelled),
-    total_audio_calls: Number(callStats[0].total_audio),
-    total_video_calls: Number(callStats[0].total_video),
-    total_chat_sessions: Number(chatStats[0].total_chat)
+    total_bookings: Number(callStats[0].total_bookings || 0),
+    total_completed: Number(callStats[0].total_completed || 0),
+    total_cancelled: Number(callStats[0].total_cancelled || 0),
+    total_audio_calls: Number(callStats[0].total_audio || 0),
+    total_video_calls: Number(callStats[0].total_video || 0),
+    total_chat_sessions: Number(chatStats[0].total_chat || 0)
   };
 };
 
@@ -63,38 +64,9 @@ exports.getSummary = async (astrologerId) => {
 
 exports.getHistory = async (astrologerId, query) => {
 
-  const { type, status, from, to } = query;
+  const { type, from, to } = query;
 
   const history = [];
-
-  // =========================
-  // STATUS MAPPING (IMPORTANT)
-  // =========================
-  let callStatusCondition = "";
-  let callStatusParams = [];
-
-  if (status) {
-    if (status === "completed") {
-      callStatusCondition = "AND c.status IN ('answered','hangup')";
-    } else if (status === "cancelled") {
-      callStatusCondition = "AND c.status IN ('decline','unanswered','disconnect')";
-    } else {
-      callStatusCondition = "AND c.status = ?";
-      callStatusParams.push(status);
-    }
-  }
-
-  let chatStatusCondition = "";
-  let chatStatusParams = [];
-
-  if (status) {
-    if (status === "completed") {
-      chatStatusCondition = "AND c.status = 'ended'";
-    } else {
-      chatStatusCondition = "AND c.status = ?";
-      chatStatusParams.push(status);
-    }
-  }
 
   // =========================
   // CALL HISTORY
@@ -118,18 +90,26 @@ exports.getHistory = async (astrologerId, query) => {
       WHERE c.agent_id = ?
       ${type === "audio" ? "AND c.call_type='audio'" : ""}
       ${type === "video" ? "AND c.call_type='video'" : ""}
-      ${callStatusCondition}
       ${callFilter.sql}
       ORDER BY c.created_at DESC
     `,
       [
         astrologerId,
-        ...callStatusParams,
         ...callFilter.params
       ]
     );
 
     calls.forEach(row => {
+
+      // =========================
+      // STATUS MAPPING
+      // =========================
+      let finalStatus = "cancelled";
+
+      if (["answered", "hangup"].includes(row.status)) {
+        finalStatus = "completed";
+      }
+
       history.push({
         id: row.id,
         user_name: row.user_name,
@@ -137,7 +117,7 @@ exports.getHistory = async (astrologerId, query) => {
         source: "call",
         amount: Number(row.amount || 0),
         duration: Number(row.duration || 0),
-        status: row.status,
+        status: finalStatus,
         date: row.created_at
       });
     });
@@ -162,18 +142,26 @@ exports.getHistory = async (astrologerId, query) => {
       FROM chat_conversations c
       LEFT JOIN users u ON u.id = c.user_id
       WHERE c.astrologer_id = ?
-      ${chatStatusCondition}
       ${chatFilter.sql}
       ORDER BY c.created_at DESC
     `,
       [
         astrologerId,
-        ...chatStatusParams,
         ...chatFilter.params
       ]
     );
 
     chats.forEach(row => {
+
+      // =========================
+      // STATUS MAPPING
+      // =========================
+      let finalStatus = "cancelled";
+
+      if (row.status === "ended") {
+        finalStatus = "completed";
+      }
+
       history.push({
         id: row.id,
         user_name: row.user_name,
@@ -181,7 +169,7 @@ exports.getHistory = async (astrologerId, query) => {
         source: "chat",
         amount: Number(row.amount || 0),
         duration: Number(row.duration || 0),
-        status: row.status,
+        status: finalStatus,
         date: row.created_at
       });
     });
