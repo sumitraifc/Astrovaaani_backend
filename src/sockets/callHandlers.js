@@ -48,6 +48,19 @@ const connectedUsers = {};
  */
 const activeCallTimeouts = {};
 
+/**
+ * activeCallBillingTimers — recurring call charge timers
+ * Format: { call_id: intervalRef }
+ */
+const activeCallBillingTimers = {};
+
+function clearCallBillingTimer(callId) {
+  if (activeCallBillingTimers[callId]) {
+    clearInterval(activeCallBillingTimers[callId]);
+    delete activeCallBillingTimers[callId];
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // DB HELPERS
 // ─────────────────────────────────────────────────────────────
