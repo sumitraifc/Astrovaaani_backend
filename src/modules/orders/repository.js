@@ -68,6 +68,7 @@ exports.getAll = async (userId) => {
 
   return rows;
 };
+
 // exports.getById = async (userId, id) => {
 //   const [rows] = await db.query(
 //     "SELECT * FROM orders WHERE id=? AND user_id=?",

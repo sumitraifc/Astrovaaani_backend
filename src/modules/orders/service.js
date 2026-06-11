@@ -17,12 +17,27 @@ exports.createOrder = async (userId, data) => {
   };
 };
 
+// exports.getOrders = async (userId) => {
+//   const orders = await repo.getAll(userId);
+//   //  console.log("orders in service :",orders);
+//   return {
+//     success: true,
+//     orders
+//   };
+// };
 exports.getOrders = async (userId) => {
   const orders = await repo.getAll(userId);
-  //  console.log("orders in service :",orders);
+
+  const formattedOrders = orders.map(order => ({
+    ...order,
+    astrologer_image: order.astrologer_image
+      ? `${process.env.BASE_URL}/uploads/${order.astrologer_image}`
+      : null
+  }));
+
   return {
     success: true,
-    orders
+    orders: formattedOrders
   };
 };
 
