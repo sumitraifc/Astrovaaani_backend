@@ -313,3 +313,37 @@ exports.getTimeline = async (req, res) => {
     });
   }
 };
+
+
+exports.updateProfile = async (req, res) => {
+  try {
+    const astrologerId = req.user.id;
+    const files = req.files;
+
+    const profile_image =
+      files?.profile_image?.[0]?.filename || null;
+
+    const result = await service.updateProfile(astrologerId, {
+      name: req.body.name,
+      profile_image
+    });
+
+    // full URL
+    if (result?.profile_image) {
+      result.profile_image =
+        `${process.env.BASE_URL}/uploads/${result.profile_image}`;
+    }
+
+    res.json({
+      success: true,
+      message: "Profile updated successfully",
+      data: result
+    });
+
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      message: err.message
+    });
+  }
+};

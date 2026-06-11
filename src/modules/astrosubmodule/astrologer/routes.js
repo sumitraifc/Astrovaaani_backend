@@ -60,3 +60,12 @@ router.post("/upload", verifyToken, controller.uploadDocument);
 // verification timeline
 router.get("/timeline", verifyToken, controller.getTimeline);
 module.exports = router;
+
+router.post(
+  "/update-profile-astrolager",
+  verifyToken,
+  upload.fields([
+    { name: "profile_image", maxCount: 1 }
+  ]),
+  controller.updateProfile
+);

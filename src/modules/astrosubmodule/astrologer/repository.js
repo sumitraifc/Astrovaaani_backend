@@ -304,3 +304,10 @@ validity_date: data.validity_date|| validityDate,
     )
   };
 };
+
+exports.update = async (id, data) => {
+  await db.query(
+    "UPDATE astrologers SET ? WHERE id=?",
+    [data, id]
+  );
+};

@@ -279,3 +279,15 @@ exports.uploadDocument = async (astrologerId, data) => {
 exports.getTimeline = async (astrologerId) => {
   return await repo.getTimeline(astrologerId);
 };
+
+exports.updateProfile = async (astrologerId, payload) => {
+  const astro = await repo.findById(astrologerId);
+
+  if (!astro) {
+    throw new Error("Astrologer not found");
+  }
+
+  await repo.update(astrologerId, payload);
+
+  return await repo.findById(astrologerId);
+};
