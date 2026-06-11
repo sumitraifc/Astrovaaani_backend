@@ -296,7 +296,15 @@ const commissionPercent = Number(astrologer.commission_percent || 0);
 
         // ── 8.5. Order create karo ──
 const orderId = "CALL" + Date.now();
-await db.query(
+console.log(`[CALL-INITIATE] Creating order:`, {
+  orderId,
+  call_id: tokenData.call_id,
+  user_id,
+  astrologer_id,
+  call_type
+});
+
+const [orderResult] = await db.query(
   `
   INSERT INTO orders
   (
@@ -323,6 +331,12 @@ await db.query(
     "pending"
   ]
 );
+
+console.log(`[CALL-INITIATE] Order created:`, {
+  order_id: orderId,
+  insertId: orderResult.insertId,
+  affectedRows: orderResult.affectedRows
+});
       // ── 9. Astrologer busy mark karo (is_online = 2) ──
       await setAstrologerOnlineStatus(io, astrologer_id, 2);
 
@@ -548,6 +562,8 @@ await db.query(
             : Number(astrologer.audio_charge || 0);
 
         if (callCharge > 0) {
+          console.log(`[CALL-ACCEPT] Deducting charge: ${callCharge} from user ${user_id}`);
+          
           const settlement = await settleConsultationCharge({
             user_id,
             astrologer_id,
@@ -556,6 +572,8 @@ await db.query(
             sessionId: call_id,
             reason: `${call_type} call`
           });
+
+          console.log(`[CALL-ACCEPT] Settlement result:`, settlement);
 
           if (userSocketId) {
             io.to(userSocketId).emit("wallet-deducted", {
@@ -568,6 +586,7 @@ await db.query(
           }
 
           if (!settlement.success) {
+            console.log(`[CALL-ACCEPT] ❌ Settlement failed: ${settlement.reason}`);
             await updateCallStatus(call_id, "hangup", "insufficient_balance");
             await db.query(
               `

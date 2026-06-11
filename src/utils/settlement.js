@@ -16,9 +16,13 @@ async function settleConsultationCharge({
   sessionId,
   reason = "Consultation Charge"
 }) {
+  console.log(`\n[SETTLEMENT] Starting settlement: user=${user_id}, astrologer=${astrologer_id}, amount=${amount}, type=${sessionType}, sessionId=${sessionId}`);
+  
   const commissionPercent = await getAstrologerCommissionPercent(astrologer_id);
   const adminCut = Number(((amount * commissionPercent) / 100).toFixed(2));
   const astrologerNet = Number((amount - adminCut).toFixed(2));
+
+  console.log(`[SETTLEMENT] Commission: ${commissionPercent}%, Admin cut: ${adminCut}, Astrologer net: ${astrologerNet}`);
 
   const connection = await db.getConnection();
   try {
@@ -29,8 +33,11 @@ async function settleConsultationCharge({
       [amount, Number(user_id), amount]
     );
 
+    console.log(`[SETTLEMENT] Wallet update result:`, walletUpdate);
+
     if (walletUpdate.affectedRows === 0) {
       await connection.rollback();
+      console.log(`[SETTLEMENT] ❌ Insufficient balance for user ${user_id}`);
       return { success: false, reason: "insufficient_balance" };
     }
 
@@ -38,6 +45,8 @@ async function settleConsultationCharge({
       `INSERT INTO wallet_transactions (user_id, type, amount, reason, created_at) VALUES (?, 'debit', ?, ?, NOW())`,
       [Number(user_id), amount, reason]
     );
+
+    console.log(`[SETTLEMENT] ✅ Wallet transaction recorded`);
 
     await connection.query(
       `UPDATE astrologers
@@ -47,28 +56,39 @@ async function settleConsultationCharge({
       [astrologerNet, astrologerNet, Number(astrologer_id)]
     );
 
+    console.log(`[SETTLEMENT] ✅ Astrologer wallet updated`);
+
     if (sessionType === "chat") {
-      await connection.query(
+      const [chatUpdate] = await connection.query(
         `UPDATE chat_conversations
-         SET admin_commission = ?, updated_at = NOW()
+         SET admin_commission = ?
          WHERE conversation_id = ?`,
         [commissionPercent, sessionId]
       );
+      console.log(`[SETTLEMENT] Chat conversation update:`, chatUpdate);
     } else if (sessionType === "call") {
-      await connection.query(
+      const [callUpdate] = await connection.query(
         `UPDATE call_history
-         SET admin_commission_percent = ?, updated_at = NOW()
+         SET admin_commission_percent = ?
          WHERE id = ?`,
         [commissionPercent, Number(sessionId)]
       );
+      console.log(`[SETTLEMENT] Call history update:`, callUpdate);
     }
 
-    await connection.query(
-      `UPDATE orders SET price = COALESCE(price, 0) + ? WHERE conversation_id = ?`,
+    const [orderUpdate] = await connection.query(
+      `UPDATE orders SET price = COALESCE(price, 0) + ?, status = 'pending' WHERE conversation_id = ?`,
       [amount, String(sessionId)]
     );
+    
+    console.log(`[SETTLEMENT] Order update result:`, orderUpdate);
+    if (orderUpdate.affectedRows === 0) {
+      console.log(`[SETTLEMENT] ⚠️ WARNING: No order found for conversation_id=${sessionId}`);
+    }
 
     await connection.commit();
+    console.log(`[SETTLEMENT] ✅ Settlement completed successfully`);
+    
     return {
       success: true,
       adminCut,
@@ -77,6 +97,7 @@ async function settleConsultationCharge({
     };
   } catch (error) {
     await connection.rollback();
+    console.error(`[SETTLEMENT] ❌ Error:`, error.message);
     throw error;
   } finally {
     connection.release();
