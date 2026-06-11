@@ -49,21 +49,35 @@ exports.getAll = async (userId) => {
     SELECT 
       o.*,
 
-      -- Astrologer basic info (from astrologers table)
+      -- Astrologer basic info
       a.name AS astrologer_name,
       a.profile_image AS astrologer_image,
       a.rating AS astrologer_rating,
       a.experience AS astrologer_experience,
       a.languages AS astrologer_languages,
       a.expertise AS astrologer_expertise,
-      a.is_online AS astrologer_is_online
+      a.is_online AS astrologer_is_online,
+
+      -- Favourite flag (TRUE / FALSE)
+      CASE 
+        WHEN f.id IS NOT NULL THEN TRUE 
+        ELSE FALSE 
+      END AS is_favourite
 
     FROM orders o
-    LEFT JOIN astrologers a ON a.id = o.astrologer_id
+
+    LEFT JOIN astrologers a 
+      ON a.id = o.astrologer_id
+
+    LEFT JOIN favorites f 
+      ON f.astrologer_id = o.astrologer_id 
+      AND f.user_id = ?
+
     WHERE o.user_id = ?
+
     ORDER BY o.id DESC
     `,
-    [userId]
+    [userId, userId]
   );
 
   return rows;
