@@ -31,7 +31,7 @@ exports.getBanners = async () => {
 
 exports.getSupportLinks = async () => {
   const [rows] = await db.query(`
-    SELECT meta_key, title, content
+    SELECT meta_key, title, content,image
     FROM app_contents
     WHERE type='support' AND status='active'
   `);

@@ -186,11 +186,13 @@ exports.addMember = async (data) => {
   try {
 
     data.name = data.name?.trim();
-const memberId = Number(data.id) || null;
+
+    // convert id safely
+    const memberId = Number(data.id) || null;
+
     // =========================
     // UPDATE FLOW (ID EXISTS)
     // =========================
-    // if (data.id) {
     if (memberId) {
 
       const [updateResult] = await pool.query(
@@ -204,7 +206,7 @@ const memberId = Number(data.id) || null;
           birth_time = ?,
           birth_place = ?,
           updated_at = NOW()
-        WHERE memberId = ? AND user_id = ?
+        WHERE id = ? AND user_id = ?
         `,
         [
           data.name,
@@ -213,14 +215,14 @@ const memberId = Number(data.id) || null;
           data.dob,
           data.birth_time,
           data.birth_place,
-          data.id,
+          memberId,
           data.user_id
         ]
       );
 
       return {
         action: "update",
-        member_id: data.id,
+        member_id: memberId,
         result: updateResult
       };
     }

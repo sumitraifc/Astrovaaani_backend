@@ -24,7 +24,8 @@ exports.getConfig = async () => {
     support: support.map(item => ({
       key: item.meta_key,
       title: item.title,
-      url: item.content
+      url: item.content,
+      image: item.image
     }))
   };
 };
