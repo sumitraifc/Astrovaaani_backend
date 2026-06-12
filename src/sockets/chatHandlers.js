@@ -1400,8 +1400,12 @@ socket.on("get_chat_history", async (data, callback) => {
     cc.last_message_at,
 
     u.id AS user_id,
-    u.name AS user_name,
-    u.profile_image,
+u.name AS user_name,
+u.profile_image,
+u.gender,
+u.dob,
+u.birth_time,
+u.birth_place
 
     lm.message AS last_message,
     lm.message_type,
@@ -1440,7 +1444,11 @@ if (updatedConversation?.booking_type === "member" && updatedConversation?.membe
   updatedConversation.consultation_person = {
     type: "self",
     id: updatedConversation.user_id,
-    name: updatedConversation.user_name
+    name: updatedConversation.user_name,
+     gender: updatedConversation.gender,
+    dob: updatedConversation.dob,
+    birth_time: updatedConversation.birth_time,
+    birth_place: updatedConversation.birth_place,
   };
 }
 
