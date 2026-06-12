@@ -100,6 +100,23 @@ async function notifyChatRecipient({ conversation, sender_type, sender_id, messa
   });
 }
 
+async function markConversationEnded(conversation_id) {
+  const [result] = await db.query(
+    `
+    UPDATE chat_conversations
+    SET
+      status = 'ended',
+      ended_at = NOW(),
+      is_timer_running = 0,
+      updated_at = NOW()
+    WHERE conversation_id = ?
+      AND status != 'ended'
+    `,
+    [conversation_id]
+  );
+  return result.affectedRows > 0;
+}
+
 module.exports = (io, socket) => {
   /**
    * =========================================
@@ -384,6 +401,43 @@ console.log(`[CHAT-CREATE] Order created:`, {
       );
 
       /**
+       * INITIAL CHAT CHARGE
+       */
+      const initialCharge = chargePerMin;
+      const settlementResult = await settleConsultationCharge({
+        user_id,
+        astrologer_id,
+        amount: initialCharge,
+        sessionType: "chat",
+        sessionId: uniqueKey,
+        reason: "Chat start charge"
+      });
+
+      if (!settlementResult.success) {
+        await db.query(`DELETE FROM chat_conversations WHERE id = ?`, [insertResult.insertId]);
+        await db.query(`DELETE FROM orders WHERE order_id = ?`, [orderId]);
+        return callback({
+          success: false,
+          message: "Unable to process initial chat charge. Please try again."
+        });
+      }
+
+      await db.query(
+        `
+        UPDATE chat_conversations
+        SET amount = amount + ?, duration = duration + 1, updated_at = NOW()
+        WHERE conversation_id = ?
+        `,
+        [initialCharge, uniqueKey]
+      );
+
+      const [walletBalanceRows] = await db.query(
+        `SELECT balance FROM wallet WHERE user_id = ? LIMIT 1`,
+        [user_id]
+      );
+      const updatedWalletBalance = Number(walletBalanceRows[0]?.balance || 0);
+
+      /**
        * ASTROLOGER BUSY
        */
       // await db.query(
@@ -499,7 +553,7 @@ if (fcmToken) {
       callback({
         success: true,
         conversation_id: conversation.conversation_id,
-        wallet_balance: walletBalance,
+        wallet_balance: updatedWalletBalance,
         conversation,
         consultation_person: consultationPerson,
         socket_id: socket.id 
@@ -1227,57 +1281,51 @@ socket.on("get_chat_history", async (data, callback) => {
                 /**
                  * END CHAT
                  */
-                await db.query(
-                  `
-                  UPDATE chat_conversations
-                  SET
-                    status = 'ended',
-                    ended_at = NOW(),
-                    is_timer_running = 0
-                  WHERE conversation_id = ?
-                  `,
-                  [conversation_id]
-                );
-                 
-                // Set final order price based on chat_conversations.amount
-                const [finalRows] = await db.query(
-                  `SELECT amount FROM chat_conversations WHERE conversation_id = ? LIMIT 1`,
-                  [conversation_id]
-                );
-                const finalAmount = Number(finalRows[0]?.amount || 0);
-                await db.query(
-  `UPDATE orders
-   SET price = ?, status = 'completed', end_time = NOW()
-   WHERE conversation_id = ?`,
-  [finalAmount, conversation_id]
-);
-                console.log(`[CHAT-END] Order updated for ${conversation_id}: price=${finalAmount}`);
+                const marked = await markConversationEnded(conversation_id);
 
-                await setAstrologerOnlineStatus(
-                  io,
-                  conversation.astrologer_id,
-                  1
-                );
+                if (marked) {
+                  // Set final order price based on chat_conversations.amount
+                  const [finalRows] = await db.query(
+                    `SELECT amount FROM chat_conversations WHERE conversation_id = ? LIMIT 1`,
+                    [conversation_id]
+                  );
+                  const finalAmount = Number(finalRows[0]?.amount || 0);
+                  await db.query(
+                    `UPDATE orders
+                     SET price = ?, status = 'completed', end_time = NOW()
+                     WHERE conversation_id = ?`,
+                    [finalAmount, conversation_id]
+                  );
+                  console.log(`[CHAT-END] Order updated for ${conversation_id}: price=${finalAmount}`);
 
-                console.log(
-                  `[LOW BALANCE] Astrologer ${conversation.astrologer_id} -> ONLINE`
-                );
-                io.to("room_" + conversation_id).emit("chat_ended", {
-                  success: false,
-                  message: "Insufficient balance"
-                });
+                  await setAstrologerOnlineStatus(
+                    io,
+                    conversation.astrologer_id,
+                    1
+                  );
 
-                await notifyPush({
-                  targetType: "user",
-                  targetId: conversation.user_id,
-                  title: "Wallet balance low",
-                  body: "Your chat ended because your wallet balance is insufficient.",
-                  data: {
-                    type: "chat_ended",
-                    conversation_id,
-                    reason: "low_balance"
-                  }
-                });
+                  console.log(
+                    `[LOW BALANCE] Astrologer ${conversation.astrologer_id} -> ONLINE`
+                  );
+                  io.to("room_" + conversation_id).emit("chat_ended", {
+                    success: false,
+                    message: "Insufficient balance"
+                  });
+
+                  await notifyPush({
+                    targetType: "user",
+                    targetId: conversation.user_id,
+                    title: "Wallet balance low",
+                    body: "Your chat ended because your wallet balance is insufficient.",
+                    data: {
+                      type: "chat_ended",
+                      conversation_id,
+                      reason: "low_balance"
+                    }
+                  });
+                } else {
+                  console.log(`[CHAT-TIMER] Chat already ended for ${conversation_id}, skipping end flow`);
+                }
 
                 return;
               }
@@ -1516,17 +1564,13 @@ io.in("room_" + conversation_id).emit("receive_message", {
     /**
      * END CHAT
      */
-    await db.query(
-      `
-      UPDATE chat_conversations
-      SET
-        status = 'ended',
-        ended_at = NOW(),
-        updated_at = NOW()
-      WHERE conversation_id = ?
-      `,
-      [conversation_id]
-    );
+    const ended = await markConversationEnded(conversation_id);
+
+    if (!ended) {
+      console.log(`[LEAVE_ROOM] Conversation already ended: ${conversation_id}`);
+      delete onlineUsers[socket.id];
+      return;
+    }
 
     /**
      * ✅ ORDER UPDATE — set final price based on chat_conversations.amount
@@ -1552,33 +1596,19 @@ io.in("room_" + conversation_id).emit("receive_message", {
     /**
      * ASTROLOGER ONLINE
      */
-    // const [convRows] = await db.query(
-    //   `
-    //   SELECT astrologer_id, user_id
-    //   FROM chat_conversations
-    //   WHERE conversation_id = ?
-    //   LIMIT 1
-    //   `,
-    //   [conversation_id]
-    // );
-    
     const [convRows] = await db.query(
-  `SELECT astrologer_id, user_id, amount, duration
-   FROM chat_conversations
-   WHERE conversation_id = ?
-   LIMIT 1`,
-  [conversation_id]
-);
+      `SELECT astrologer_id, user_id, amount, duration FROM chat_conversations WHERE conversation_id = ? LIMIT 1`,
+      [conversation_id]
+    );
 
-// Calculate astrologer earning = total_amount - commission
-const totalAmount = Number(convRows[0]?.amount || 0);
-const [astroData] = await db.query(
-  `SELECT commission_percent FROM astrologers WHERE id = ? LIMIT 1`,
-  [convRows[0]?.astrologer_id]
-);
-const commissionPercent = Number(astroData[0]?.commission_percent || 0);
-const adminCut = Number(((totalAmount * commissionPercent) / 100).toFixed(2));
-const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
+    const totalAmount = Number(convRows[0]?.amount || 0);
+    const [astroData] = await db.query(
+      `SELECT commission_percent FROM astrologers WHERE id = ? LIMIT 1`,
+      [convRows[0]?.astrologer_id]
+    );
+    const commissionPercent = Number(astroData[0]?.commission_percent || 0);
+    const adminCut = Number(((totalAmount * commissionPercent) / 100).toFixed(2));
+    const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
 
     if (convRows.length) {
       const astrologer_id = convRows[0].astrologer_id;
@@ -1588,31 +1618,22 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
 
       console.log(`[CHAT ENDED] Astrologer ${astrologer_id} -> ONLINE`);
 
-      /**
-       * ✅ AGAR USER NE LEAVE KIYA
-       * -> Astrologer ko notify karo
-       */
+      const payload = {
+        success: true,
+        ended_by: sender_type,
+        message:
+          sender_type === "astrologer"
+            ? "Astrologer ne chat end kar di"
+            : "User ne chat end kar di",
+        duration: Number(convRows[0]?.duration || 0) + " min",
+        total_amount: Number(convRows[0]?.amount || 0),
+        astrologer_earning: astrologerEarning,
+        conversation_id
+      };
+
+      io.to("room_" + conversation_id).emit("chat_ended", payload);
+
       if (sender_type === "user") {
-        io.to("room_" + conversation_id).emit("chat_ended", {
-          success: true,
-          ended_by: "user",
-          message: "User ne chat end kar di",
-          duration: Number(convRows[0]?.duration || 0) + " min",
-  total_amount: Number(convRows[0]?.amount || 0),
-  astrologer_earning: astrologerEarning,
-        });
-
-        // Astrologer ke personal room mein bhi bhejo
-        io.to(`astrologer_${astrologer_id}`).emit("chat_ended", {
-          success: true,
-          ended_by: "user",
-          conversation_id,
-          message: "User ne chat end kar di",
-          duration: Number(convRows[0]?.duration || 0) + " min",
-  total_amount: Number(convRows[0]?.amount || 0),
-  astrologer_earning: astrologerEarning,
-        });
-
         await notifyPush({
           targetType: "astrologer",
           targetId: astrologer_id,
@@ -1623,39 +1644,15 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
             conversation_id,
             ended_by: "user",
             duration: Number(convRows[0]?.duration || 0) + " min",
-  total_amount: Number(convRows[0]?.amount || 0),
-  astrologer_earning: astrologerEarning,
+            total_amount: Number(convRows[0]?.amount || 0),
+            astrologer_earning: astrologerEarning
           }
         });
 
         console.log(`[LEAVE] User ${user_id} left -> Astrologer ${astrologer_id} notified`);
       }
 
-      /**
-       * ✅ AGAR ASTROLOGER NE LEAVE KIYA
-       * -> User ko notify karo
-       */
       if (sender_type === "astrologer") {
-        io.to("room_" + conversation_id).emit("chat_ended", {
-          success: true,
-          ended_by: "astrologer",
-          message: "Astrologer ne chat end kar di",
-          duration: Number(convRows[0]?.duration || 0) + " min",
-  total_amount: Number(convRows[0]?.amount || 0),
-  astrologer_earning: astrologerEarning,
-        });
-
-        // User ke personal room mein bhi bhejo
-        io.to(`user_${user_id}`).emit("chat_ended", {
-          success: true,
-          ended_by: "astrologer",
-          conversation_id,
-          message: "Astrologer ne chat end kar di",
-          duration: Number(convRows[0]?.duration || 0) + " min",
-  total_amount: Number(convRows[0]?.amount || 0),
-  astrologer_earning: astrologerEarning,
-        });
-
         await notifyPush({
           targetType: "user",
           targetId: user_id,
@@ -1672,6 +1669,7 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
       }
     }
 
+    delete onlineUsers[socket.id];
   } catch (err) {
     console.log("Leave Room Error:", err.message);
   }
@@ -1683,7 +1681,10 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
    * =========================================
    */
   const handleChatDisconnect = async () => {
-      if (socket._manualLeave) return;
+      if (socket._manualLeave) {
+        delete onlineUsers[socket.id];
+        return;
+      }
     const onlineUser = onlineUsers[socket.id];
 
     if (!onlineUser) {
@@ -1703,32 +1704,28 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
     /**
      * END CHAT
      */
-    await db.query(
-      `
-      UPDATE chat_conversations
-      SET
-        status = 'ended',
-        ended_at = NOW(),
-        is_timer_running = 0
-      WHERE conversation_id = ?
-      `,
-      [conversation_id]
-    );
+    const ended = await markConversationEnded(conversation_id);
+
+    if (!ended) {
+      console.log(`[DISCONNECT] Conversation already ended: ${conversation_id}`);
+      delete onlineUsers[socket.id];
+      return;
+    }
 
     // Update order with final chat amount
     const [finalRows3] = await db.query(`SELECT amount FROM chat_conversations WHERE conversation_id = ? LIMIT 1`, [conversation_id]);
     const finalAmount3 = Number(finalRows3[0]?.amount || 0);
     await db.query(
-  `UPDATE orders
-  SET
-   price = ?,
-   status = 'completed',
-   end_time = NOW()
-  WHERE conversation_id = ?
-  `,
-  [finalAmount3, conversation_id]
-  );
+      `UPDATE orders
+      SET
+        price = ?,
+        status = 'completed',
+        end_time = NOW()
+      WHERE conversation_id = ?`,
+      [finalAmount3, conversation_id]
+    );
     console.log(`[CHAT-DISCONNECT] Order updated for ${conversation_id}: price=${finalAmount3}`);
+
     /**
      * ASTROLOGER ONLINE
      */
@@ -1743,81 +1740,53 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
     );
 
     if (convRows.length) {
-      // await db.query(
-      //   `
-      //   UPDATE astrologers
-      //   SET chat_status = 'online'
-      //   WHERE id = ?
-      //   `,
-      //   [convRows[0].astrologer_id]
-      // );
-if (sender_type === "astrologer" && astrologer_id) {
+      if (sender_type === "astrologer" && astrologer_id) {
+        await setAstrologerOnlineStatus(io, astrologer_id, 0);
 
-  await setAstrologerOnlineStatus(
-    io,
-    astrologer_id,
-    0
-  );
+        console.log(`[DISCONNECT] Astrologer ${astrologer_id} -> OFFLINE`);
+      } else if (astrologer_id) {
+        await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
-  console.log(
-    `[DISCONNECT] Astrologer ${astrologer_id} -> OFFLINE`
-  );
-
-} else if (astrologer_id) {
-
-  await setAstrologerOnlineStatus(
-    io,
-    astrologer_id,
-    1
-  );
-
-
-
-  console.log(
-    `[DISCONNECT] User left, Astrologer ${astrologer_id} -> ONLINE`
-  );
-}
-  io.to("room_" + conversation_id).emit("chat_ended", {
-  success: true,
-  ended_by: sender_type,
-  conversation_id,
-  message: sender_type === "astrologer"
-    ? "Astrologer disconnected"
-    : "User disconnected"
-});
-
-  if (sender_type === "user") {
-    await notifyPush({
-      targetType: "astrologer",
-      targetId: astrologer_id,
-      title: "User disconnected",
-      body: "User left the chat unexpectedly.",
-      data: {
-        type: "chat_ended",
-        conversation_id,
-        reason: "disconnect",
-        ended_by: "user"
+        console.log(`[DISCONNECT] User left, Astrologer ${astrologer_id} -> ONLINE`);
       }
-    });
-  } else if (sender_type === "astrologer") {
-    await notifyPush({
-      targetType: "user",
-      targetId: convRows[0].user_id,
-      title: "Astrologer disconnected",
-      body: "Astrologer disconnected from the chat.",
-      data: {
-        type: "chat_ended",
+
+      io.to("room_" + conversation_id).emit("chat_ended", {
+        success: true,
+        ended_by: sender_type,
         conversation_id,
-        reason: "disconnect",
-        ended_by: "astrologer"
+        message:
+          sender_type === "astrologer"
+            ? "Astrologer disconnected"
+            : "User disconnected"
+      });
+
+      if (sender_type === "user") {
+        await notifyPush({
+          targetType: "astrologer",
+          targetId: astrologer_id,
+          title: "User disconnected",
+          body: "User left the chat unexpectedly.",
+          data: {
+            type: "chat_ended",
+            conversation_id,
+            reason: "disconnect",
+            ended_by: "user"
+          }
+        });
+      } else if (sender_type === "astrologer") {
+        await notifyPush({
+          targetType: "user",
+          targetId: convRows[0].user_id,
+          title: "Astrologer disconnected",
+          body: "Astrologer disconnected from the chat.",
+          data: {
+            type: "chat_ended",
+            conversation_id,
+            reason: "disconnect",
+            ended_by: "astrologer"
+          }
+        });
       }
-    });
-  }
-      // if (sender_type === "astrologer" && astrologer_id) {
-      //   await setAstrologerOnlineStatus(io, astrologer_id, 0);
-      // } else if (astrologer_id) {
-      //   await setAstrologerOnlineStatus(io, astrologer_id, 1);
-      // }
     }
 
     delete onlineUsers[socket.id];
