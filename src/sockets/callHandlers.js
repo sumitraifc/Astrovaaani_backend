@@ -945,17 +945,27 @@ await db.query(
   console.log("ASTRO SOCKET =>", astrologerSocketId);
   console.log("CURRENT SOCKET =>", socket.id);
       // DB: hangup
-      // await updateCallHistoryStatuss(call_id, "hangup");
       const [rows] = await db.query(
-  `SELECT start_time, call_type, per_minute_charge FROM call_history WHERE id = ? LIMIT 1`,
+  `SELECT status, start_time, call_type, per_minute_charge FROM call_history WHERE id = ? LIMIT 1`,
   [call_id]
 );
 
+const callStatus = rows[0]?.status || "hangup";
 const startTime = rows[0]?.start_time || 0;
 const callType = rows[0]?.call_type || "audio";
 let perMinute = Number(rows[0]?.per_minute_charge || 0);
-const duration = endTime - startTime;
-const minutes = Math.ceil(duration / 60);
+
+// For unanswered/declined calls: duration = 0, no charge
+let duration = 0;
+let minutes = 0;
+if (callStatus === "answered") {
+  duration = endTime - startTime;
+  minutes = Math.ceil(duration / 60);
+} else if (callStatus === "unanswered" || callStatus === "decline") {
+  // Call never started → no charge
+  duration = 0;
+  minutes = 0;
+}
 
       await updateCallHistoryStatuss(
   call_id,

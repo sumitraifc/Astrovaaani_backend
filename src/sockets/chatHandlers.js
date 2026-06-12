@@ -1083,19 +1083,7 @@ socket.on("get_chat_history", async (data, callback) => {
       /**
        * UPDATE CONVERSATION
        */
-      // await db.query(
-      //   `
-      //   UPDATE chat_conversations
-      //   SET
-      //     total_messages = total_messages + 1,
-      //     last_message_at = NOW(),
-      //     last_message = ?,
-      //     updated_at = NOW()
-      //   WHERE conversation_id = ?
-      //   `,
-      //   [message,conversation_id]
-      // );
-await db.query(
+      await db.query(
   `UPDATE chat_conversations
    SET
      total_messages = total_messages + 1,
@@ -1104,7 +1092,7 @@ await db.query(
      updated_at = NOW()
    WHERE conversation_id = ?`,
   [
-    message || (message_type === "image" ? "📷 Photo" : "📎 File"),  // ← yeh add karo
+    message || (message_type === "image" ? "📷 Photo" : "📎 File"),
     conversation_id
   ]
 );
@@ -1283,61 +1271,8 @@ await db.query(
                 return;
               }
 
-              if (!settlement.success) {
-                clearInterval(activeTimers[conversation_id]);
-                delete activeTimers[conversation_id];
-
-                await db.query(
-                  `
-                  UPDATE chat_conversations
-                  SET
-                    status = 'ended',
-                    ended_at = NOW(),
-                    is_timer_running = 0
-                  WHERE conversation_id = ?
-                  `,
-                  [conversation_id]
-                );
-
-                // Set final order price based on chat_conversations.amount
-                const [finalRows2] = await db.query(
-                  `SELECT amount FROM chat_conversations WHERE conversation_id = ? LIMIT 1`,
-                  [conversation_id]
-                );
-                const finalAmount2 = Number(finalRows2[0]?.amount || 0);
-                await db.query(
-                  `UPDATE orders
-                   SET price = ?, status = 'completed', end_time = NOW()
-                   WHERE conversation_id = ?`,
-                  [finalAmount2, conversation_id]
-                );
-
-                console.log(`[CHAT-END] Order updated for ${conversation_id}: price=${finalAmount2}`);
-
-                await setAstrologerOnlineStatus(io, conversation.astrologer_id, 1);
-
-                io.to("room_" + conversation_id).emit("chat_ended", {
-                  success: false,
-                  message: "Insufficient balance"
-                });
-
-                await notifyPush({
-                  targetType: "user",
-                  targetId: conversation.user_id,
-                  title: "Wallet balance low",
-                  body: "Your chat ended because your wallet balance is insufficient.",
-                  data: {
-                    type: "chat_ended",
-                    conversation_id,
-                    reason: "low_balance"
-                  }
-                });
-
-                return;
-              }
-
               /**
-               * UPDATE CHAT
+               * ✅ SETTLEMENT SUCCESSFUL - UPDATE AMOUNT
                */
               await db.query(
                 `
@@ -1619,14 +1554,15 @@ io.in("room_" + conversation_id).emit("receive_message", {
   [conversation_id]
 );
 
-// Earning fetch karo
-const [earningRows] = await db.query(
-  `SELECT SUM(astrologer_credit) as total_earning
-   FROM wallet_transactions
-   WHERE session_id = ? AND session_type = 'chat'`,
-  [conversation_id]
+// Calculate astrologer earning = total_amount - commission
+const totalAmount = Number(convRows[0]?.amount || 0);
+const [astroData] = await db.query(
+  `SELECT commission_percent FROM astrologers WHERE id = ? LIMIT 1`,
+  [convRows[0]?.astrologer_id]
 );
-const astrologerEarning = Number(earningRows[0]?.total_earning || 0);
+const commissionPercent = Number(astroData[0]?.commission_percent || 0);
+const adminCut = Number(((totalAmount * commissionPercent) / 100).toFixed(2));
+const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
 
     if (convRows.length) {
       const astrologer_id = convRows[0].astrologer_id;
