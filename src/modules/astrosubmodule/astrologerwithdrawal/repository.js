@@ -1,4 +1,4 @@
-const pool = require("../db");
+const db = require("../../../config/db");
 
 /**
  * astrologer info
