@@ -18,7 +18,7 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  timezone: '+04:30' 
+  timezone: '+05:30'
 });
 
 /**
@@ -33,6 +33,9 @@ const connectDB = async () => {
     }
 
     const connection = await pool.getConnection();
+    await connection.query("SET time_zone = '+05:30'");
+
+   
     console.log("✅ MySQL Connected Successfully");
     connection.release();
 
