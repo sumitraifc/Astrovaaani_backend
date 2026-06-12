@@ -108,8 +108,15 @@ module.exports = (io, socket) => {
    */
   socket.on("create_conversation", async (data, callback) => {
     try {
-      const { user_id, astrologer_id } = data;
+      // const { user_id, astrologer_id } = data;
 
+      // const { user_id, astrologer_id, booking_type, member_id } = data;
+      const {
+  user_id,
+  astrologer_id,
+  booking_type = "self",
+  member_id = null
+} = data;
       /**
        * UNIQUE CONVERSATION ID
        */
@@ -123,11 +130,15 @@ module.exports = (io, socket) => {
       const [userRows] = await db.query(
         `
         SELECT
-          id,
-          name
-        FROM users
-        WHERE id = ?
-        LIMIT 1
+  id,
+  name,
+  gender,
+  dob,
+  birth_time,
+  birth_place
+FROM users
+WHERE id = ?
+LIMIT 1
         `,
         [user_id]
       );
@@ -138,6 +149,54 @@ module.exports = (io, socket) => {
           message: "User not found"
         });
       }
+         let consultationPerson = null;
+
+if (booking_type === "member" && member_id) {
+
+  const [memberRows] = await db.query(
+    `
+    SELECT
+      id,
+      name,
+      relation,
+      gender,
+      dob,
+      birth_time,
+      birth_place
+    FROM user_family_members
+    WHERE id = ?
+    AND user_id = ?
+    LIMIT 1
+    `,
+    [member_id, user_id]
+  );
+
+  if (!memberRows.length) {
+    return callback({
+      success: false,
+      message: "Family member not found"
+    });
+  }
+
+  consultationPerson = {
+    type: "member",
+    ...memberRows[0]
+  };
+
+} else {
+
+  consultationPerson = {
+    type: "self",
+    id: userRows[0].id,
+    name: userRows[0].name,
+    gender: userRows[0].gender,
+    dob: userRows[0].dob,
+    birth_time: userRows[0].birth_time,
+    birth_place: userRows[0].birth_place
+  };
+
+}
+
 
       /**
        * ASTROLOGER DETAILS
@@ -207,35 +266,79 @@ module.exports = (io, socket) => {
       /**
        * CREATE CHAT
        */
-      const [insertResult] = await db.query(
-        `
-        INSERT INTO chat_conversations
-        (
-          uuid,
-          conversation_id,
-          user_id,
-          astrologer_id,
-          status,
-          charge_per_min,
-          amount,
-          duration,
-          started_at,
-          created_at,
-          updated_at
-        )
-        VALUES
-        (
-          ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW()
-        )
-        `,
-        [uuidv4(), uniqueKey, user_id, astrologer_id, "active", chargePerMin, 0, 0]
-      );
+      // const [insertResult] = await db.query(
+      //   `
+      //   INSERT INTO chat_conversations
+      //   (
+      //     uuid,
+      //     conversation_id,
+      //     user_id,
+      //     astrologer_id,
+      //     status,
+      //     charge_per_min,
+      //     amount,
+      //     duration,
+      //     started_at,
+      //     created_at,
+      //     updated_at
+      //   )
+      //   VALUES
+      //   (
+      //     ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW()
+      //   )
+      //   `,
+      //   [uuidv4(), uniqueKey, user_id, astrologer_id, "active", chargePerMin, 0, 0]
+      // );
 
+       const [insertResult] = await db.query(
+  `
+  INSERT INTO chat_conversations
+  (
+    uuid,
+    conversation_id,
+    user_id,
+    astrologer_id,
+    booking_type,
+    member_id,
+    status,
+    charge_per_min,
+    amount,
+    duration,
+    started_at,
+    created_at,
+    updated_at
+  )
+  VALUES
+  (
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW()
+  )
+  `,
+  [
+    uuidv4(),
+    uniqueKey,
+    user_id,
+    astrologer_id,
+    booking_type || "self",
+    member_id || null,
+    "active",
+    chargePerMin,
+    0,
+    0
+  ]
+);
 
 
 const orderId = "CHAT" + Date.now();
 
-await db.query(
+console.log(`[CHAT-CREATE] Creating order:`, {
+  orderId,
+  conversation_id: uniqueKey,
+  user_id,
+  astrologer_id,
+  consultation_type: "chat"
+});
+
+const [chatOrderResult] = await db.query(
 `
 INSERT INTO orders
 (
@@ -265,6 +368,12 @@ VALUES
   "pending"
 ]
 );
+
+console.log(`[CHAT-CREATE] Order created:`, {
+  order_id: orderId,
+  insertId: chatOrderResult.insertId,
+  affectedRows: chatOrderResult.affectedRows
+});
 
       await db.query(
         `UPDATE astrologers
@@ -348,7 +457,14 @@ if (fcmToken) {
         conversation_id: conversation.conversation_id,
         user_id,
         astrologer_id,
-        user_name: userRows[0].name
+        user_name: userRows[0].name,
+        consultation_name: consultationPerson.name,
+  consultation_gender: consultationPerson.gender,
+  consultation_dob: consultationPerson.dob,
+  consultation_birth_time: consultationPerson.birth_time,
+  consultation_birth_place: consultationPerson.birth_place,
+  consultation_type: consultationPerson.type,
+  consultation_relation: consultationPerson.relation || ""
       }
     });
 
@@ -385,6 +501,7 @@ if (fcmToken) {
         conversation_id: conversation.conversation_id,
         wallet_balance: walletBalance,
         conversation,
+        consultation_person: consultationPerson,
         socket_id: socket.id 
       });
     } catch (err) {
@@ -1091,6 +1208,8 @@ await db.query(
                 });
               }
 
+              console.log(`[CHAT-TIMER] charge_per_min from DB for ${conversation_id}:`, conversation.charge_per_min);
+
               const settlement = await settleConsultationCharge({
                 user_id: conversation.user_id,
                 astrologer_id: conversation.astrologer_id,
@@ -1099,6 +1218,8 @@ await db.query(
                 sessionId: conversation_id,
                 reason: "Chat Consultation"
               });
+
+              console.log(`[CHAT-TIMER] Settlement for ${conversation_id}:`, settlement);
 
               if (!settlement.success) {
                 clearInterval(activeTimers[conversation_id]);
@@ -1119,12 +1240,19 @@ await db.query(
                   [conversation_id]
                 );
                  
+                // Set final order price based on chat_conversations.amount
+                const [finalRows] = await db.query(
+                  `SELECT amount FROM chat_conversations WHERE conversation_id = ? LIMIT 1`,
+                  [conversation_id]
+                );
+                const finalAmount = Number(finalRows[0]?.amount || 0);
                 await db.query(
   `UPDATE orders
-   SET status = 'completed', end_time = NOW()
+   SET price = ?, status = 'completed', end_time = NOW()
    WHERE conversation_id = ?`,
-  [conversation_id]
+  [finalAmount, conversation_id]
 );
+                console.log(`[CHAT-END] Order updated for ${conversation_id}: price=${finalAmount}`);
 
                 await setAstrologerOnlineStatus(
                   io,
@@ -1171,12 +1299,20 @@ await db.query(
                   [conversation_id]
                 );
 
-                await db.query(
-                  `UPDATE orders
-                   SET status = 'completed', end_time = NOW()
-                   WHERE conversation_id = ?`,
+                // Set final order price based on chat_conversations.amount
+                const [finalRows2] = await db.query(
+                  `SELECT amount FROM chat_conversations WHERE conversation_id = ? LIMIT 1`,
                   [conversation_id]
                 );
+                const finalAmount2 = Number(finalRows2[0]?.amount || 0);
+                await db.query(
+                  `UPDATE orders
+                   SET price = ?, status = 'completed', end_time = NOW()
+                   WHERE conversation_id = ?`,
+                  [finalAmount2, conversation_id]
+                );
+
+                console.log(`[CHAT-END] Order updated for ${conversation_id}: price=${finalAmount2}`);
 
                 await setAstrologerOnlineStatus(io, conversation.astrologer_id, 1);
 
@@ -1420,18 +1556,25 @@ await db.query(
     );
 
     /**
-     * ✅ ORDER UPDATE
+     * ✅ ORDER UPDATE — set final price based on chat_conversations.amount
      */
+    const [finalRows] = await db.query(
+      `SELECT amount FROM chat_conversations WHERE conversation_id = ? LIMIT 1`,
+      [conversation_id]
+    );
+    const finalAmount = Number(finalRows[0]?.amount || 0);
     await db.query(
       `
       UPDATE orders
       SET
+        price = ?,
         status = 'completed',
         end_time = NOW()
       WHERE conversation_id = ?
       `,
-      [conversation_id]
+      [finalAmount, conversation_id]
     );
+    console.log(`[CHAT-END] Order updated for ${conversation_id}: price=${finalAmount}`);
 
     /**
      * ASTROLOGER ONLINE
@@ -1565,16 +1708,20 @@ await db.query(
       [conversation_id]
     );
 
+    // Update order with final chat amount
+    const [finalRows3] = await db.query(`SELECT amount FROM chat_conversations WHERE conversation_id = ? LIMIT 1`, [conversation_id]);
+    const finalAmount3 = Number(finalRows3[0]?.amount || 0);
     await db.query(
-`
-UPDATE orders
-SET
- status = 'completed',
- end_time = NOW()
-WHERE conversation_id = ?
-`,
-[conversation_id]
-);
+  `UPDATE orders
+  SET
+   price = ?,
+   status = 'completed',
+   end_time = NOW()
+  WHERE conversation_id = ?
+  `,
+  [finalAmount3, conversation_id]
+  );
+    console.log(`[CHAT-DISCONNECT] Order updated for ${conversation_id}: price=${finalAmount3}`);
     /**
      * ASTROLOGER ONLINE
      */
