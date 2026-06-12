@@ -765,9 +765,20 @@ socket.on("get_chat_list", async (data, callback) => {
 
     console.log("=================================\n");
 
+    // Format profile images with BASE_URL
+    const formattedRows = rows.map(row => ({
+      ...row,
+      astrologer_profile_image: row.astrologer_profile_image
+        ? `${process.env.BASE_URL}/uploads/${row.astrologer_profile_image}`
+        : null,
+      user_profile_image: row.user_profile_image
+        ? `${process.env.BASE_URL}/uploads/${row.user_profile_image}`
+        : null
+    }));
+
     callback?.({
       success: true,
-      data: rows
+      data: formattedRows
     });
 
   } catch (err) {
@@ -1383,6 +1394,11 @@ if (updatedConversation?.booking_type === "member" && updatedConversation?.membe
     id: updatedConversation.user_id,
     name: updatedConversation.user_name
   };
+}
+
+// Format profile image with BASE_URL
+if (updatedConversation?.profile_image) {
+  updatedConversation.profile_image = `${process.env.BASE_URL}/uploads/${updatedConversation.profile_image}`;
 }
 
 io.to(`astrologer_${conversation.astrologer_id}`)
