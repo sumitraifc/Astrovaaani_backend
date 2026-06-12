@@ -107,6 +107,8 @@ app.use("/api/astrologer/bankdetails", require("./modules/astrosubmodule/bankdet
 
 app.use("/api/astrologer-earning/", require("./modules/astrosubmodule/astrolagerearning/routes"));
 
+app.use("/api/astrologerwithdraw", require("./modules/astrosubmodule/astrologerwithdrawal/routes"));
+
 app.use("/api/booking/", require("./modules/astrosubmodule/astrologerbookinghistory/routes"));
 
 app.use("/api/reviews/", require("./modules/astrosubmodule/reviews/routes"));
