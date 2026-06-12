@@ -1515,6 +1515,7 @@ io.in("room_" + conversation_id).emit("receive_message", {
    * =========================================
    */
  socket.on("leave_room", async (data) => {
+  socket._manualLeave = true;
    console.log("[LEAVE_ROOM] Event received:", data);
   try {
     const { conversation_id, sender_type } = data;
@@ -1600,15 +1601,32 @@ io.in("room_" + conversation_id).emit("receive_message", {
     /**
      * ASTROLOGER ONLINE
      */
+    // const [convRows] = await db.query(
+    //   `
+    //   SELECT astrologer_id, user_id
+    //   FROM chat_conversations
+    //   WHERE conversation_id = ?
+    //   LIMIT 1
+    //   `,
+    //   [conversation_id]
+    // );
+    
     const [convRows] = await db.query(
-      `
-      SELECT astrologer_id, user_id
-      FROM chat_conversations
-      WHERE conversation_id = ?
-      LIMIT 1
-      `,
-      [conversation_id]
-    );
+  `SELECT astrologer_id, user_id, amount, duration
+   FROM chat_conversations
+   WHERE conversation_id = ?
+   LIMIT 1`,
+  [conversation_id]
+);
+
+// Earning fetch karo
+const [earningRows] = await db.query(
+  `SELECT SUM(astrologer_credit) as total_earning
+   FROM wallet_transactions
+   WHERE session_id = ? AND session_type = 'chat'`,
+  [conversation_id]
+);
+const astrologerEarning = Number(earningRows[0]?.total_earning || 0);
 
     if (convRows.length) {
       const astrologer_id = convRows[0].astrologer_id;
@@ -1626,7 +1644,10 @@ io.in("room_" + conversation_id).emit("receive_message", {
         io.to("room_" + conversation_id).emit("chat_ended", {
           success: true,
           ended_by: "user",
-          message: "User ne chat end kar di"
+          message: "User ne chat end kar di",
+          duration: Number(convRows[0]?.duration || 0),
+  total_amount: Number(convRows[0]?.amount || 0),
+  astrologer_earning: astrologerEarning,
         });
 
         // Astrologer ke personal room mein bhi bhejo
@@ -1634,7 +1655,10 @@ io.in("room_" + conversation_id).emit("receive_message", {
           success: true,
           ended_by: "user",
           conversation_id,
-          message: "User ne chat end kar di"
+          message: "User ne chat end kar di",
+          duration: Number(convRows[0]?.duration || 0),
+  total_amount: Number(convRows[0]?.amount || 0),
+  astrologer_earning: astrologerEarning,
         });
 
         await notifyPush({
@@ -1645,7 +1669,10 @@ io.in("room_" + conversation_id).emit("receive_message", {
           data: {
             type: "chat_ended",
             conversation_id,
-            ended_by: "user"
+            ended_by: "user",
+            duration: Number(convRows[0]?.duration || 0),
+  total_amount: Number(convRows[0]?.amount || 0),
+  astrologer_earning: astrologerEarning,
           }
         });
 
@@ -1660,7 +1687,10 @@ io.in("room_" + conversation_id).emit("receive_message", {
         io.to("room_" + conversation_id).emit("chat_ended", {
           success: true,
           ended_by: "astrologer",
-          message: "Astrologer ne chat end kar di"
+          message: "Astrologer ne chat end kar di",
+          duration: Number(convRows[0]?.duration || 0),
+  total_amount: Number(convRows[0]?.amount || 0),
+  astrologer_earning: astrologerEarning,
         });
 
         // User ke personal room mein bhi bhejo
@@ -1668,7 +1698,10 @@ io.in("room_" + conversation_id).emit("receive_message", {
           success: true,
           ended_by: "astrologer",
           conversation_id,
-          message: "Astrologer ne chat end kar di"
+          message: "Astrologer ne chat end kar di",
+          duration: Number(convRows[0]?.duration || 0),
+  total_amount: Number(convRows[0]?.amount || 0),
+  astrologer_earning: astrologerEarning,
         });
 
         await notifyPush({
@@ -1698,6 +1731,7 @@ io.in("room_" + conversation_id).emit("receive_message", {
    * =========================================
    */
   const handleChatDisconnect = async () => {
+      if (socket._manualLeave) return;
     const onlineUser = onlineUsers[socket.id];
 
     if (!onlineUser) {
