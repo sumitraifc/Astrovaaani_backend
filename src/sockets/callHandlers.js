@@ -663,6 +663,12 @@ await db.query(
             return;
           }
 
+          // Update call_history amount after successful initial charge
+          await db.query(
+            `UPDATE call_history SET amount = amount + ? WHERE id = ?`,
+            [callCharge, call_id]
+          );
+
           if (!activeCallBillingTimers[call_id]) {
             activeCallBillingTimers[call_id] = setInterval(async () => {
               try {
@@ -739,6 +745,13 @@ await db.query(
                 });
 
                 console.log(`[CALL-BILLING] Recurring settlement for call ${call_id}:`, recurringSettlement);
+
+                if (recurringSettlement.success) {
+                  await db.query(
+                    `UPDATE call_history SET amount = amount + ? WHERE id = ?`,
+                    [recurringCharge, call_id]
+                  );
+                }
 
                 if (!recurringSettlement.success) {
                   console.log(`[CALL-BILLING] Recurring settlement failed for call ${call_id}`);
