@@ -1597,7 +1597,7 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
           success: true,
           ended_by: "user",
           message: "User ne chat end kar di",
-          duration: Number(convRows[0]?.duration || 0),
+          duration: Number(convRows[0]?.duration || 0) + " min",
   total_amount: Number(convRows[0]?.amount || 0),
   astrologer_earning: astrologerEarning,
         });
@@ -1608,7 +1608,7 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
           ended_by: "user",
           conversation_id,
           message: "User ne chat end kar di",
-          duration: Number(convRows[0]?.duration || 0),
+          duration: Number(convRows[0]?.duration || 0) + " min",
   total_amount: Number(convRows[0]?.amount || 0),
   astrologer_earning: astrologerEarning,
         });
@@ -1622,7 +1622,7 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
             type: "chat_ended",
             conversation_id,
             ended_by: "user",
-            duration: Number(convRows[0]?.duration || 0),
+            duration: Number(convRows[0]?.duration || 0) + " min",
   total_amount: Number(convRows[0]?.amount || 0),
   astrologer_earning: astrologerEarning,
           }
@@ -1640,7 +1640,7 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
           success: true,
           ended_by: "astrologer",
           message: "Astrologer ne chat end kar di",
-          duration: Number(convRows[0]?.duration || 0),
+          duration: Number(convRows[0]?.duration || 0) + " min",
   total_amount: Number(convRows[0]?.amount || 0),
   astrologer_earning: astrologerEarning,
         });
@@ -1651,7 +1651,7 @@ const astrologerEarning = Number((totalAmount - adminCut).toFixed(2));
           ended_by: "astrologer",
           conversation_id,
           message: "Astrologer ne chat end kar di",
-          duration: Number(convRows[0]?.duration || 0),
+          duration: Number(convRows[0]?.duration || 0) + " min",
   total_amount: Number(convRows[0]?.amount || 0),
   astrologer_earning: astrologerEarning,
         });
