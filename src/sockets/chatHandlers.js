@@ -1405,7 +1405,7 @@ u.profile_image,
 u.gender,
 u.dob,
 u.birth_time,
-u.birth_place
+u.birth_place,
 
     lm.message AS last_message,
     lm.message_type,
