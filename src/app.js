@@ -82,7 +82,7 @@ app.use("/api/users", require("./modules/user/routes"));
 app.use("/api/app-config", require("./modules/appConfig/routes"));
 app.use("/api/horoscope",require("./modules/horoscope/routes"));
 
-app.use("/api/panchang",require("./modules/panchang/routes"));
+app.use("/api/panchang",require("./modules/Panchang/routes"));
 
 app.use("/api/orders", require("./modules/orders/routes"));
 
