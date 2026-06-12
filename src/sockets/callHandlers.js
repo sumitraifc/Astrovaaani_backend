@@ -205,7 +205,9 @@ module.exports = (io, socket) => {
     try {
       console.log("CALL INITIATE EVENT =>", data);
 
-      const { user_id, astrologer_id, call_type } = data;
+      // const { user_id, astrologer_id, call_type } = data;
+
+      const { user_id, astrologer_id, call_type, member_id  } = data;
 
       // ── 1. Required fields ──
       if (!user_id || !astrologer_id || !call_type) {
@@ -246,6 +248,30 @@ const commissionPercent = Number(astrologer.commission_percent || 0);
           message: "User not found",
         });
       }
+
+      let consultationPerson;
+
+if (member_id) {
+  const [memberRows] = await db.query(
+    `SELECT id, name, relation, gender, dob, birth_time, birth_place
+     FROM user_family_members
+     WHERE id = ? AND user_id = ? LIMIT 1`,
+    [member_id, user_id]
+  );
+  consultationPerson = memberRows[0]
+    ? { type: "member", ...memberRows[0] }
+    : { type: "self", id: user.id, name: user.name };
+} else {
+  const [userDetail] = await db.query(
+    `SELECT id, name, gender, dob, birth_time, birth_place
+     FROM users WHERE id = ? LIMIT 1`,
+    [user_id]
+  );
+  consultationPerson = {
+    type: "self",
+    ...userDetail[0]
+  };
+}
 
       // ── 4. is_online state check ──
       // Number() cast — MySQL se kabhi string aata hai kabhi int
@@ -375,6 +401,7 @@ console.log(`[CALL-INITIATE] Order created:`, {
   : null,
           },
 
+            consultation_person: consultationPerson,
           astrologer_details: {
             id: astrologer.id,
             name: astrologer.name,
@@ -396,6 +423,7 @@ console.log(`[CALL-INITIATE] Order created:`, {
           call_type,
           user_id,
           astrologer_id,
+          consultation_person: JSON.stringify(consultationPerson),
         },
       });
 
