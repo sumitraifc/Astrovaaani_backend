@@ -450,15 +450,15 @@ console.log(`[CHAT-CREATE] Order created:`, {
       // );
 
       // await setAstrologerChatStatus(io, astrologer_id, "busy");
-      await setAstrologerOnlineStatus(
-  io,
-  astrologer_id,
-  2
-);
+//       await setAstrologerOnlineStatus(
+//   io,
+//   astrologer_id,
+//   2
+// );
 
-console.log(
-  `[CHAT STARTED] Astrologer ${astrologer_id} -> BUSY`
-);
+// console.log(
+//   `[CHAT STARTED] Astrologer ${astrologer_id} -> BUSY`
+// );
 
       /**
        * GET CONVERSATION
@@ -1098,6 +1098,28 @@ socket.on("get_chat_history", async (data, callback) => {
       if (!message && !file_url) {
         return;
       }
+      
+      /**
+     * CONVERSATION STATUS CHECK
+     * Agar chat end ho chuki hai to message block karo
+     */
+    const [convCheck] = await db.query(
+      `SELECT status FROM chat_conversations 
+       WHERE conversation_id = ? LIMIT 1`,
+      [conversation_id]
+    );
+
+    if (!convCheck.length || convCheck[0].status === 'ended') {
+      console.log(`[SEND_MESSAGE] Blocked — conversation already ended: ${conversation_id}`);
+      
+      socket.emit("chat_already_ended", {
+        success: false,
+        conversation_id,
+        message: "Yeh chat already end ho chuki hai, aap message nahi bhej sakte"
+      });
+
+      return;
+    }
 
       /**
        * SAVE MESSAGE
@@ -1224,7 +1246,8 @@ socket.on("get_chat_history", async (data, callback) => {
         );
 
         console.log("Timer Started:", conversation_id);
-
+await setAstrologerOnlineStatus(io, conversation.astrologer_id, 2);
+  console.log(`[CHAT STARTED] Astrologer ${conversation.astrologer_id} -> BUSY (first message sent)`);
         activeTimers[conversation_id] = setInterval(
           async () => {
             try {
