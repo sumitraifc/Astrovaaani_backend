@@ -1,13 +1,11 @@
 const {
   sendFcmNotification,
   sendTopicNotification,
-  sendNotification,
-  sendNotificationWithRetry
+  sendNotification
 } = require("../services/notificationService");
 
 module.exports = {
   sendFcmNotification,
   sendTopicNotification,
-  sendNotification,
-  sendNotificationWithRetry
+  sendNotification
 };

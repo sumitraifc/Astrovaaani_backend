@@ -312,6 +312,15 @@ if (member_id) {
       const astrologerSocketId = connectedUsers[astrologer_id];
       console.log("ASTROLOGER SOCKET ID =>", astrologerSocketId);
 
+      if (!astrologerSocketId) {
+        // Socket nahi mila — DB mein bhi offline kar do (sync fix)
+        await setAstrologerOnlineStatus(io, astrologer_id, 0);
+        return socket.emit("call-failed", {
+          success: false,
+          message: "Astrologer is offline",
+        });
+      }
+
       // ── 7. Agora token generate ──
       const tokenData = await callService.generateAgoraToken({
         user_id,
@@ -324,40 +333,7 @@ if (member_id) {
       // ── 8. DB mein initiate status ──
       await updateCallHistoryStatus(tokenData.call_id, "initiate");
 
-      // ── 8.5. FCM notification भेजो — अब बिना socket check के ──
-      // Notification automatically astrologer ko app band hote bhi pahunchegi
-      await notifyPush({
-        targetType: "astrologer",
-        targetId: astrologer_id,
-        title: `Incoming ${call_type.toUpperCase()} Call`,
-        body: `Call from ${user.name}`,
-        type: "data",
-        data: {
-          channel_name: String(tokenData.channel_name),
-          start_time: String(Date.now()),
-          call_type: String(call_type),
-          video_call_status: "pending",
-          call_long_duration: "0",
-          caller_id: String(user.id),
-          caller_name: String(user.name || ""),
-          caller_image: user.profile_image
-            ? `${process.env.BASE_URL}/uploads/${user.profile_image}`
-            : "",
-          receiver_id: String(astrologer.id),
-          receiver_name: String(astrologer.name || ""),
-          receiver_image: astrologer.profile_image
-            ? `${process.env.BASE_URL}/uploads/${astrologer.profile_image}`
-            : "",
-          call_id: String(tokenData.call_id),
-          status: "connecting",
-          type: "call_initiated"
-        }
-      }).catch(err => {
-        console.log(`[CALL-INITIATE] FCM notification failed:`, err.message);
-        // Notification fail hone se call nahi roko - continue
-      });
-
-        // ── 8.6. Order create karo ──
+        // ── 8.5. Order create karo ──
 const orderId = "CALL" + Date.now();
 console.log(`[CALL-INITIATE] Creating order:`, {
   orderId,
@@ -434,6 +410,34 @@ console.log(`[CALL-INITIATE] Order created:`, {
           user_id,
           astrologer_id,
         },
+      });
+
+      await notifyPush({
+        targetType: "astrologer",
+        targetId: astrologer_id,
+        title: `Incoming ${call_type.toUpperCase()} Call`,
+        body: `Call from ${user.name}`,
+        type: "data",
+        data: {
+          channel_name: String(tokenData.channel_name),
+          start_time: String(Date.now()),
+          call_type: String(call_type),
+          video_call_status: "pending",
+          call_long_duration: "0",
+          caller_id: String(user.id),
+          caller_name: String(user.name || ""),
+          caller_image: user.profile_image
+            ? `${process.env.BASE_URL}/uploads/${user.profile_image}`
+            : "",
+          receiver_id: String(astrologer.id),
+          receiver_name: String(astrologer.name || ""),
+          receiver_image: astrologer.profile_image
+            ? `${process.env.BASE_URL}/uploads/${astrologer.profile_image}`
+            : "",
+          call_id: String(tokenData.call_id),
+          status: "connecting",
+          type: "call_initiated"
+        }
       });
 
       // ── 11. DB mein ringing status ──
