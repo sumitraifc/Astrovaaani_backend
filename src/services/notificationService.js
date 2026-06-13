@@ -51,13 +51,56 @@ function buildFcmMessage({ token, topic, title, body, data = {}, notificationTyp
   return message;
 }
 
+/**
+ * Send notification with retry logic
+ * इसे multiple times भेजेगा अगर पहली बार fail हो
+ */
+async function sendNotificationWithRetry({ token, title, body, data = {}, maxRetries = 2 }) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const message = buildFcmMessage({
+        token,
+        title,
+        body,
+        data,
+        notificationType: "data"
+      });
+
+      const response = await admin.messaging().send(message);
+      console.log(`[FCM-RETRY] Success on attempt ${attempt}: ${response}`);
+      return { success: true, response, attempt };
+    } catch (error) {
+      lastError = error;
+      console.log(`[FCM-RETRY] Attempt ${attempt} failed:`, error.message);
+
+      // Agar token invalid hai, to aur retry mat karo
+      if (
+        error.code === "messaging/registration-token-not-registered" ||
+        error.code === "messaging/invalid-registration-token"
+      ) {
+        console.log(`[FCM-RETRY] Invalid token detected. Not retrying.`);
+        break;
+      }
+
+      // Wait before retry
+      if (attempt < maxRetries) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+    }
+  }
+
+  console.log(`[FCM-RETRY] Failed after ${maxRetries} attempts:`, lastError?.message);
+  throw lastError;
+}
+
 async function sendFcmNotification({ token, title, body, data = {} }) {
   if (!token) {
     throw new Error("FCM token is required");
   }
 
-  const message = buildFcmMessage({ token, title, body, data, notificationType: "data" });
-  return await admin.messaging().send(message);
+  return await sendNotificationWithRetry({ token, title, body, data });
 }
 
 async function sendTopicNotification({ topic, title, body, data = {} }) {
@@ -90,5 +133,6 @@ async function sendNotification({ token, topic, title, body, image = null, data 
 module.exports = {
   sendFcmNotification,
   sendTopicNotification,
-  sendNotification
+  sendNotification,
+  sendNotificationWithRetry
 };
