@@ -3,6 +3,8 @@ const callHandlers = require("./callHandlers");
 const astrologerchatlistHandler = require("./astrologerchatlistHandler");
 const { astrologerSocket } = require("./astrologerHandler");
 const liveHandler = require("./liveHandler");
+const notificationcountHandler = require("./notificationcountHandler"); 
+
 /**
  * =========================================
  * GLOBAL SOCKET CONNECTION MANAGER
@@ -17,6 +19,8 @@ module.exports = (io) => {
 
     // Initialize call handlers
     const callHandle = callHandlers(io, socket);
+
+     notificationcountHandler(io, socket);
 
     // Initialize astrologer list handlers
     const astrologerChatListHandle = astrologerchatlistHandler(io, socket);
