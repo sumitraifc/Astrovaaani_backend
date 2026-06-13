@@ -13,7 +13,7 @@ async function getFcmTokenByType(type, id) {
   return rows[0]?.fcm_token || null;
 }
 
-async function notifyPush({ targetType, targetId, title, body, data = {} }) {
+async function notifyPush({ targetType, targetId, title, body, data = {}, type = "notification" }) {
   const token = await getFcmTokenByType(targetType, targetId);
   if (!token) {
     console.log(`[CALL FCM] No token for ${targetType} ${targetId}`);
@@ -21,7 +21,7 @@ async function notifyPush({ targetType, targetId, title, body, data = {} }) {
   }
 
   try {
-    const result = await sendNotification({ token, title, body, data });
+    const result = await sendNotification({ token, title, body, data, type });
     console.log(`[CALL FCM] Sent push to ${targetType} ${targetId}: ${title}`);
     return result;
   } catch (err) {
@@ -415,16 +415,29 @@ console.log(`[CALL-INITIATE] Order created:`, {
       await notifyPush({
         targetType: "astrologer",
         targetId: astrologer_id,
-        title: "Incoming call",
-        body: `${user.name} is calling you (${call_type})`,
+        title: `Incoming ${call_type.toUpperCase()} Call`,
+        body: `Call from ${user.name}`,
+        type: "data",
         data: {
-          type: "call_initiated",
-          call_id: tokenData.call_id,
-          call_type,
-          user_id,
-          astrologer_id,
-          consultation_person: JSON.stringify(consultationPerson),
-        },
+          channel_name: String(tokenData.channel_name),
+          start_time: String(Date.now()),
+          call_type: String(call_type),
+          video_call_status: "pending",
+          call_long_duration: "0",
+          caller_id: String(user.id),
+          caller_name: String(user.name || ""),
+          caller_image: user.profile_image
+            ? `${process.env.BASE_URL}/uploads/${user.profile_image}`
+            : "",
+          receiver_id: String(astrologer.id),
+          receiver_name: String(astrologer.name || ""),
+          receiver_image: astrologer.profile_image
+            ? `${process.env.BASE_URL}/uploads/${astrologer.profile_image}`
+            : "",
+          call_id: String(tokenData.call_id),
+          status: "connecting",
+          type: "call_initiated"
+        }
       });
 
       // ── 11. DB mein ringing status ──
