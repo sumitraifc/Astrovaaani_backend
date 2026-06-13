@@ -525,6 +525,9 @@ if (fcmToken) {
     console.log(
       `[FCM SENT] New chat notification sent to astrologer ${astrologer_id}`
     );
+    console.log(
+      `[FCM SENT] New chat notification sent to astrologer fcm tolen  ${fcmToken}`
+    );
 
   } catch (error) {
 
