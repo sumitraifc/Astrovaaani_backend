@@ -1116,7 +1116,7 @@ await db.query(
           delete connectedUsers[userId];
 
           // Astrologer offline mark karo (is_online = 0)
-          await setAstrologerOnlineStatus(io, Number(userId), 0);
+          // await setAstrologerOnlineStatus(io, Number(userId), 0);
 
           // Agar ye user/astrologer active call mein tha
           const [activeCalls] = await db.query(
