@@ -1,13 +1,34 @@
 const db = require("../../config/db");
 
-exports.getNotifications = async (userId) => {
+// exports.getNotifications = async (userId) => {
+//   const [rows] = await db.query(
+//     `
+//     SELECT * FROM notifications
+//     WHERE user_id=?
+//     ORDER BY id DESC
+//   `,
+//     [userId]
+//   );
+
+//   return rows;
+// };
+
+exports.getNotifications = async (userId, astrologerId, role) => {
+
   const [rows] = await db.query(
     `
     SELECT * FROM notifications
-    WHERE user_id=?
+    WHERE 
+      (
+        target_type = 'all'
+        OR (target_type = 'users' AND ? = 'user')
+        OR (target_type = 'astrologers' AND ? = 'astrologer')
+        OR user_id = ?
+        OR astrologer_id = ?
+      )
     ORDER BY id DESC
-  `,
-    [userId]
+    `,
+    [role, role, userId, astrologerId]
   );
 
   return rows;
