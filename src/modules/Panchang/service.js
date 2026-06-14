@@ -84,3 +84,87 @@ exports.storePanchang = async (date) => {
 exports.getAll = async () => {
     return repo.getAll();
 };
+
+exports.getPanchangByDate = async (date) => {
+
+    let data = await repo.findByDate(date);
+
+    /**
+     * DB me nahi mila
+     */
+    if (!data) {
+
+        await exports.storePanchang(date);
+
+        data = await repo.findByDate(date);
+    }
+
+    return {
+        status: true,
+        data: {
+            tithi: {
+                name: data.tithi_name,
+                description: data.tithi_description,
+                status: data.tithi_status
+            },
+
+            nakshatra: {
+                name: data.nakshatra_name,
+                description: data.nakshatra_description,
+                status: data.nakshatra_status
+            },
+
+            yoga: {
+                name: data.yoga_name,
+                description: data.yoga_description,
+                status: data.yoga_status
+            },
+
+            karan: {
+                name: data.karan_name,
+                description: data.karan_description,
+                status: data.karan_status
+            },
+
+            rahu_kaal: {
+                time: data.rahu_kaal_time,
+                status: data.rahu_kaal_status
+            },
+
+            abhijit_muhurat: {
+                time: data.abhijit_muhurat_time,
+                status: data.abhijit_muhurat_status
+            },
+
+            amrit_kaal: {
+                time: data.amrit_kaal_time,
+                status: data.amrit_kaal_status
+            },
+
+            _id: data.third_party_id,
+
+            date: data.date,
+            day: data.day,
+
+            auspicious: data.auspicious,
+
+            overall_day_status: data.overall_day_status,
+            overall_description: data.overall_description,
+
+            sunrise: data.sunrise,
+            sunset: data.sunset,
+            moonrise: data.moonrise,
+            moonset: data.moonset,
+
+            paksha: data.paksha,
+            hindu_month: data.hindu_month,
+            month: data.month,
+            year: data.year,
+
+            festivals: JSON.parse(data.festivals || "[]"),
+            vrat: JSON.parse(data.vrat || "[]"),
+            shubh_works: JSON.parse(data.shubh_works || "[]"),
+            avoid_works: JSON.parse(data.avoid_works || "[]")
+        }
+    };
+};

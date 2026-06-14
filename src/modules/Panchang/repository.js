@@ -84,3 +84,12 @@ exports.getAll = async () => {
 
     return rows;
 };
+
+exports.findByDate = async (date) => {
+    const [rows] = await pool.query(
+        `SELECT * FROM panchang WHERE date = ?`,
+        [date]
+    );
+
+    return rows[0] || null;
+};

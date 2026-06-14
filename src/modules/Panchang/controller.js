@@ -47,3 +47,29 @@ exports.getAll = async (req, res) => {
         });
     }
 };
+
+exports.getByDate = async (req, res) => {
+
+    try {
+
+        const { date } = req.body;
+
+        if (!date) {
+            return res.status(400).json({
+                status: false,
+                message: "date is required"
+            });
+        }
+
+        const result = await service.getPanchangByDate(date);
+
+        return res.json(result);
+
+    } catch (error) {
+
+        return res.status(500).json({
+            status: false,
+            message: error.message
+        });
+    }
+};
