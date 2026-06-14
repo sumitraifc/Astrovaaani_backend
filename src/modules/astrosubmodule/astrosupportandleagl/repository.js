@@ -1,6 +1,6 @@
 const db = require("../../../config/db");
 
-exports.getContent = async (astrologerId) => {
+exports.getContent = async () => {
 
   const [rows] = await db.query(`
     SELECT 

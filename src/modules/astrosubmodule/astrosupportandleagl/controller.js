@@ -3,9 +3,9 @@ const service = require("./service");
 exports.getContent = async (req, res) => {
   try {
 
-    const astrologerId = req.user.id;
+    // const astrologerId = req.user.id;
 
-    const result = await service.getContent(astrologerId);
+    const result = await service.getContent();
 
     res.json({
       success: true,
