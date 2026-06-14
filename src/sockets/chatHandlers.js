@@ -276,7 +276,8 @@ if (booking_type === "member" && member_id) {
       if (walletBalance < chargePerMin) {
         return callback({
           success: false,
-          message: `Minimum balance required is ₹${chargePerMin}`
+          message: `Minimum balance required is ₹${chargePerMin}`,
+          status: "insufficient_balance",
         });
       }
 

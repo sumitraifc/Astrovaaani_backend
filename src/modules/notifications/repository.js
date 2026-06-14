@@ -19,13 +19,11 @@ exports.getNotifications = async (userId, astrologerId, role) => {
     `
     SELECT * FROM notifications
     WHERE 
-      (
-        target_type = 'all'
-        OR (target_type = 'users' AND ? = 'user')
-        OR (target_type = 'astrologers' AND ? = 'astrologer')
-        OR user_id = ?
-        OR astrologer_id = ?
-      )
+      target_type = 'all'
+      OR (target_type = 'users' AND ? = 'user')
+      OR (target_type = 'astrologers' AND ? = 'astrologer')
+      OR user_id = ?
+      OR astrologer_id = ?
     ORDER BY id DESC
     `,
     [role, role, userId, astrologerId]
