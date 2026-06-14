@@ -219,27 +219,50 @@ exports.saveStep = async (step, id, payload) => {
   // ======================
   const updatedAstro = await repo.findById(id);
 
+  // const anyRejected = [1,2,3,4,5].some(
+  //   (s) => updatedAstro[`step${s}_status`] === "rejected"
+  // );
+
+  // const allPending = [1,2,3,4,5].every(
+  //   (s) => updatedAstro[`step${s}_status`] === "pending"
+  // );
+
+  // let newStatus = "resume";
+
+  // if (anyRejected) {
+  //   newStatus = "partial_reject";
+  // }
+
+  // if (!anyRejected && !allPending && updatedAstro.registration_completed === 1) {
+  //   newStatus = "pending";
+  // }
+
+  // await repo.update(id, {
+  //   approval_status: newStatus
+  // });
+
   const anyRejected = [1,2,3,4,5].some(
-    (s) => updatedAstro[`step${s}_status`] === "rejected"
-  );
+  s => updatedAstro[`step${s}_status`] === "rejected"
+);
 
-  const allPending = [1,2,3,4,5].every(
-    (s) => updatedAstro[`step${s}_status`] === "pending"
-  );
+const isCompleted = updatedAstro.registration_completed === 1;
 
-  let newStatus = "resume";
+let newStatus;
 
-  if (anyRejected) {
-    newStatus = "partial_reject";
-  }
+// 1. rejected → partial_rejected
+if (anyRejected) {
+  newStatus = "partial_rejected";
+}
 
-  if (!anyRejected && !allPending && updatedAstro.registration_completed === 1) {
-    newStatus = "pending";
-  }
+// 2. completed → pending
+else if (isCompleted) {
+  newStatus = "pending";
+}
 
-  await repo.update(id, {
-    approval_status: newStatus
-  });
+// 3. otherwise → resume
+else {
+  newStatus = "resume";
+}
 
   // ======================
   // FINAL RESPONSE
