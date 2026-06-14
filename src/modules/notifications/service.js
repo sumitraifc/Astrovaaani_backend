@@ -10,9 +10,19 @@ const repo = require("./repository");
 //   };
 // };
 
+// exports.getNotifications = async (userId, astrologerId, role) => {
+
+//   const [rows] = await repo.getNotifications(userId, astrologerId, role);
+
+//   return {
+//     success: true,
+//     notifications: rows
+//   };
+// };
+
 exports.getNotifications = async (userId, astrologerId, role) => {
 
-  const [rows] = await repo.getNotifications(userId, astrologerId, role);
+  const rows = await repo.getNotifications(userId, astrologerId, role);
 
   return {
     success: true,
