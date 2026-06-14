@@ -75,15 +75,13 @@ exports.getContent = async () => {
 
     const type = item.type;
 
-    // =========================
-    // SUPPORT (ARRAY)
-    // =========================
+    // SUPPORT
     if (type === "support") {
 
       if (!result.support) result.support = [];
 
       result.support.push({
-        key: item.meta_key,   // optional internal use
+        key: item.meta_key,
         title: item.title,
         url: item.content,
         image: item.image
@@ -92,9 +90,7 @@ exports.getContent = async () => {
       return;
     }
 
-    // =========================
-    // FAQ (ARRAY)
-    // =========================
+    // FAQ
     if (type === "faq") {
 
       if (!result.faq) {
@@ -112,9 +108,7 @@ exports.getContent = async () => {
       return;
     }
 
-    // =========================
-    // SINGLE OBJECT TYPES
-    // =========================
+    // OTHERS
     if (!result[type]) {
       result[type] = {
         title: item.title,
@@ -125,8 +119,6 @@ exports.getContent = async () => {
 
   });
 
-  return {
-    success: true,
-    data: result
-  };
+  // 🔥 IMPORTANT: ONLY RAW DATA RETURN
+  return result;
 };
