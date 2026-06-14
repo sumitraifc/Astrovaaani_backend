@@ -1,3 +1,57 @@
+// const db = require("../../../config/db");
+
+// exports.getContent = async () => {
+
+//   const [rows] = await db.query(`
+//     SELECT 
+//       type,
+//       meta_key,
+//       title,
+//       content,
+//       image
+//     FROM app_contents
+//     WHERE status = 'active'
+//     AND target IN ('astrologer','both')
+//     ORDER BY id ASC
+//   `);
+
+//   const result = {};
+
+//   rows.forEach(item => {
+
+//     // create type bucket
+//     if (!result[item.type]) {
+//       result[item.type] = {};
+//     }
+
+//     // 🔥 ONLY SUPPORT FIX
+//     if (item.type === "support") {
+
+//       if (!item.meta_key) return; // skip null support keys
+
+//       result = {
+//         title: item.title,
+//         content: item.content,
+//         image: item.image
+//       };
+
+//     } else {
+
+//       // other types keep same logic
+//       const key = item.meta_key || "main";
+
+//       resul[item.type][key] = {
+//         title: item.title,
+//         content: item.content,
+//         image: item.image
+//       };
+//     }
+
+//   });
+
+//   return result;
+// };
+
 const db = require("../../../config/db");
 
 exports.getContent = async () => {
@@ -19,28 +73,50 @@ exports.getContent = async () => {
 
   rows.forEach(item => {
 
-    // create type bucket
-    if (!result[item.type]) {
-      result[item.type] = {};
+    const type = item.type;
+
+    // =========================
+    // SUPPORT (ARRAY)
+    // =========================
+    if (type === "support") {
+
+      if (!result.support) result.support = [];
+
+      result.support.push({
+        key: item.meta_key,   // optional internal use
+        title: item.title,
+        url: item.content,
+        image: item.image
+      });
+
+      return;
     }
 
-    // 🔥 ONLY SUPPORT FIX
-    if (item.type === "support") {
+    // =========================
+    // FAQ (ARRAY)
+    // =========================
+    if (type === "faq") {
 
-      if (!item.meta_key) return; // skip null support keys
+      if (!result.faq) {
+        result.faq = {
+          title: "FAQ",
+          content: []
+        };
+      }
 
-      result[item.type][item.meta_key] = {
-        title: item.title,
-        content: item.content,
-        image: item.image
-      };
+      result.faq.content.push({
+        question: item.title,
+        answer: item.content
+      });
 
-    } else {
+      return;
+    }
 
-      // other types keep same logic
-      const key = item.meta_key || "main";
-
-      result[item.type][key] = {
+    // =========================
+    // SINGLE OBJECT TYPES
+    // =========================
+    if (!result[type]) {
+      result[type] = {
         title: item.title,
         content: item.content,
         image: item.image
@@ -49,5 +125,8 @@ exports.getContent = async () => {
 
   });
 
-  return result;
+  return {
+    success: true,
+    data: result
+  };
 };
