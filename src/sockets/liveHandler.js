@@ -605,6 +605,25 @@ socket.on("get_first_live", async (data, callback) => {
         [stream_id, user_id, astrologer_id, giftAmount, message || null, txnResult.insertId]
       );
 
+      // ===============================
+// ORDER CREATE FOR LIVE SESSION
+// ===============================
+await db.query(
+  `INSERT INTO orders
+   (order_id, conversation_id, user_id, astrologer_id, astrologer_name,
+    consultation_type, price, image, status, start_time, created_at)
+   VALUES (?, ?, ?, ?, ?, 'live', ?, ?, 'completed', NOW(), NOW())`,
+  [
+    `LIVE_${giftResult.insertId}_${Date.now()}`, // order_id unique
+    null, // live me conversation_id null rahega (ya stream_id bhi rakh sakte ho)
+    user_id,
+    astrologer_id,
+    null, // astrologer_name (agar chaho to fetch karke daal sakte ho)
+    giftAmount,
+    null // image optional
+  ]
+);
+
       const [userRows] = await db.query(
         `SELECT name, profile_image FROM users WHERE id = ? LIMIT 1`,
         [user_id]
