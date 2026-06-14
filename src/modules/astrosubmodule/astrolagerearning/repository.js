@@ -45,8 +45,9 @@ exports.getSummary = async (
       WHERE agent_id = ?
 
       AND status IN (
-        'completed',
-        'ended'
+        'answered',
+        'hangup',
+        'disconnect'
       )
 
       UNION ALL
@@ -128,8 +129,9 @@ exports.getHistory = async (
       FROM call_history
       WHERE agent_id = ?
       AND status IN (
-        'completed',
-        'ended'
+        'answered',
+        'hangup',
+        'disconnect'
       )
       ${callFilter.sql}
       `,
