@@ -115,10 +115,24 @@ exports.createPaymentOrder = async (userId, amount) => {
 exports.handleCashfreeCallback = async (payload) => {
   console.log('[handleCashfreeCallback] start', { time: new Date().toISOString(), payload });
 
-  const orderId = payload.order_id || payload.reference_id;
-  const orderStatus = (payload.order_status || payload.tx_status || payload.status || "").toUpperCase();
+  // try multiple possible locations for order id and status (Cashfree may post nested data)
+  const orderId =
+    payload.order_id ||
+    payload.reference_id ||
+    (payload.data && payload.data.order && payload.data.order.order_id) ||
+    (payload.data && payload.data.reference_id) ||
+    undefined;
 
-  console.log('[handleCashfreeCallback] parsed', { orderId, orderStatus });
+  const orderStatusRaw =
+    payload.order_status ||
+    payload.tx_status ||
+    payload.status ||
+    (payload.data && payload.data.payment && payload.data.payment.payment_status) ||
+    (payload.data && payload.data.order && payload.data.order.order_status) ||
+    "";
+  const orderStatus = String(orderStatusRaw).toUpperCase();
+
+  console.log('[handleCashfreeCallback] parsed', { orderId, orderStatus, usedRawStatus: orderStatusRaw });
 
   if (!orderId) {
     console.error('[handleCashfreeCallback] missing order_id', payload);
@@ -142,7 +156,14 @@ exports.handleCashfreeCallback = async (payload) => {
   }
 
   const isSuccess = ["PAID", "SUCCESS", "SUCCESSFUL", "COMPLETED"].includes(orderStatus);
-  const paymentRef = payload.payment_id || payload.tx_id || orderId;
+  const paymentRef =
+    payload.payment_id ||
+    payload.tx_id ||
+    (payload.data && payload.data.payment && (payload.data.payment.cf_payment_id || payload.data.payment.gateway_payment_id || payload.data.payment.gateway_payment_id)) ||
+    (payload.data && payload.data.payment_gateway_details && payload.data.payment_gateway_details.gateway_payment_id) ||
+    orderId;
+
+  console.log('[handleCashfreeCallback] resolved paymentRef', paymentRef);
 
   if (isSuccess) {
     console.log('[handleCashfreeCallback] marking success, updating balance for user', transaction.user_id, 'amount', transaction.amount);
