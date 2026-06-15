@@ -10,6 +10,10 @@ router.get("/transactions", auth, controller.getTransactions);
 
 router.post("/add", auth, controller.addMoney);
 
+router.post("/payment-order", auth, controller.createPaymentOrder);
+
+router.post("/cashfree-callback", controller.cashfreeCallback);
+
 router.post("/spend", auth, controller.spendMoney);
 
 router.post("/refund", auth, controller.refundMoney);

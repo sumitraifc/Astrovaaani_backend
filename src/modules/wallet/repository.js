@@ -88,3 +88,44 @@ exports.addTransaction = async (data) => {
     ]
   );
 };
+
+exports.addCashfreeTransaction = async (data) => {
+  await db.query(
+    `
+    INSERT INTO wallet_transactions
+    (user_id,type,amount,reason,payment_method,payment_ref,status,balance_before,balance_after)
+    VALUES (?,?,?,?,?,?,?,?,?)
+  `,
+    [
+      data.user_id,
+      data.type,
+      data.amount,
+      data.reason,
+      data.payment_method,
+      data.payment_ref,
+      data.status,
+      data.balance_before,
+      data.balance_after
+    ]
+  );
+};
+
+exports.getTransactionByPaymentRef = async (paymentRef) => {
+  const [rows] = await db.query(
+    `SELECT * FROM wallet_transactions WHERE payment_ref = ? LIMIT 1`,
+    [paymentRef]
+  );
+
+  return rows[0];
+};
+
+exports.updateTransactionStatus = async (transactionId, status, paymentRef, balanceAfter) => {
+  await db.query(
+    `
+    UPDATE wallet_transactions
+    SET status = ?, payment_ref = ?, balance_after = ?
+    WHERE id = ?
+  `,
+    [status, paymentRef, balanceAfter, transactionId]
+  );
+};

@@ -42,6 +42,35 @@ exports.addMoney = async (req, res) => {
   }
 };
 
+exports.createPaymentOrder = async (req, res) => {
+  try {
+    const result = await service.createPaymentOrder(
+      req.user.id,
+      req.body.amount
+    );
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
+exports.cashfreeCallback = async (req, res) => {
+  try {
+    const result = await service.handleCashfreeCallback(req.body);
+
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({
+      success: false,
+      message: err.message
+    });
+  }
+};
+
 exports.spendMoney = async (req, res) => {
   try {
     const result = await service.spendMoney(
