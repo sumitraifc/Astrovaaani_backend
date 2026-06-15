@@ -29,6 +29,7 @@ const path = require("path");
 //     });
 //   }
 // };
+
 exports.sendOtp = async (req, res, next) => {
   try {
 
@@ -41,6 +42,14 @@ exports.sendOtp = async (req, res, next) => {
       return next({
         status: 400,
         message: "Mobile number is required"
+      });
+    }
+     const user = await repo.findByMobile(mobile);
+
+    if (user && user.status === "blocked") {
+      return next({
+        status: 403,
+        message: "User is blocked"
       });
     }
 
@@ -69,6 +78,7 @@ exports.sendOtp = async (req, res, next) => {
     next(err);
   }
 };
+
 exports.verifyOtp = async (req, res) => {
 
   try {
