@@ -264,6 +264,9 @@ else {
   newStatus = "resume";
 }
 
+await repo.update(id, {
+  approval_status: newStatus
+});
   // ======================
   // FINAL RESPONSE
   // ======================
