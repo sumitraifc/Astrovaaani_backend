@@ -1,6 +1,8 @@
 
 
 const service = require("./service");
+const repo = require("./repository");
+
 const sharp = require("sharp");
 const fs = require("fs");
 const path = require("path");
@@ -44,6 +46,7 @@ exports.sendOtp = async (req, res, next) => {
         message: "Mobile number is required"
       });
     }
+    
      const user = await repo.findByMobile(mobile);
 
     if (user && user.status === "blocked") {
