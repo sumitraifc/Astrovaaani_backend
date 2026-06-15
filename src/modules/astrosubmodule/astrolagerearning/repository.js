@@ -34,36 +34,69 @@ exports.getSummary = async (
   astrologerId
 ) => {
 
+  // const [earningRows] = await db.query(
+  //   `
+  //   SELECT
+  //     COALESCE(SUM(amount),0) total_earning
+  //   FROM
+  //   (
+  //     SELECT amount
+  //     FROM call_history
+  //     WHERE agent_id = ?
+
+  //     AND status IN (
+  //       'answered',
+  //       'hangup',
+  //       'disconnect'
+  //     )
+
+  //     UNION ALL
+
+  //     SELECT amount
+  //     FROM chat_conversations
+  //     WHERE astrologer_id = ?
+  //     AND status = 'ended'
+  //   ) earnings
+  //   `,
+  //   [
+  //     astrologerId,
+  //     astrologerId
+  //   ]
+  // );
+
   const [earningRows] = await db.query(
-    `
-    SELECT
-      COALESCE(SUM(amount),0) total_earning
-    FROM
-    (
-      SELECT amount
-      FROM call_history
-      WHERE agent_id = ?
+`
+SELECT
+  COALESCE(SUM(amount),0) total_earning
+FROM
+(
+  SELECT amount
+  FROM call_history
+  WHERE agent_id = ?
+  AND status IN ('answered','hangup','disconnect')
 
-      AND status IN (
-        'answered',
-        'hangup',
-        'disconnect'
-      )
+  UNION ALL
 
-      UNION ALL
+  SELECT amount
+  FROM chat_conversations
+  WHERE astrologer_id = ?
+  AND status = 'ended'
 
-      SELECT amount
-      FROM chat_conversations
-      WHERE astrologer_id = ?
-      AND status = 'ended'
-    ) earnings
-    `,
-    [
-      astrologerId,
-      astrologerId
-    ]
-  );
+  UNION ALL
 
+  SELECT price AS amount
+  FROM live_sessions
+  WHERE astrologer_id = ?
+  AND status = 'completed'
+
+) earnings
+`,
+[
+  astrologerId,
+  astrologerId,
+  astrologerId
+]
+);
   const [withdrawRows] = await db.query(
     `
     SELECT
@@ -168,6 +201,26 @@ exports.getHistory = async (
       ]
     );
 
+    const [live] = await db.query(
+`
+SELECT
+  id,
+  price,
+  start_time,
+  end_time,
+  status,
+  created_at
+FROM live_sessions
+WHERE astrologer_id = ?
+AND status = 'completed'
+${buildDateFilter(from, to, "created_at").sql}
+`,
+[
+  astrologerId,
+  ...buildDateFilter(from, to, "created_at").params
+]
+);
+
     calls.forEach(item => {
 
       history.push({
@@ -214,6 +267,17 @@ exports.getHistory = async (
       });
 
     });
+    live.forEach(item => {
+  history.push({
+    id: item.id,
+    type: "live",
+    source: "earning",
+    amount: Number(item.price),
+    duration: null,
+    status: item.status,
+    date: item.created_at
+  });
+});
   }
 
   /* ==========================

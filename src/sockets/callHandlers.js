@@ -309,17 +309,17 @@ if (member_id) {
       }
 
       // ── 6. Socket online check ──
-      const astrologerSocketId = connectedUsers[astrologer_id];
-      console.log("ASTROLOGER SOCKET ID =>", astrologerSocketId);
+      // const astrologerSocketId = connectedUsers[astrologer_id];
+      // console.log("ASTROLOGER SOCKET ID =>", astrologerSocketId);
 
-      if (!astrologerSocketId) {
-        // Socket nahi mila — DB mein bhi offline kar do (sync fix)
-        await setAstrologerOnlineStatus(io, astrologer_id, 0);
-        return socket.emit("call-failed", {
-          success: false,
-          message: "Astrologer is offline",
-        });
-      }
+      // if (!astrologerSocketId) {
+      //   // Socket nahi mila — DB mein bhi offline kar do (sync fix)
+      //   await setAstrologerOnlineStatus(io, astrologer_id, 0);
+      //   return socket.emit("call-failed", {
+      //     success: false,
+      //     message: "Astrologer is offline",
+      //   });
+      // }
 
       // ── 7. Agora token generate ──
       const tokenData = await callService.generateAgoraToken({
