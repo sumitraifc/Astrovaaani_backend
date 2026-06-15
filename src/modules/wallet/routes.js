@@ -12,7 +12,7 @@ router.post("/add", auth, controller.addMoney);
 
 router.post("/payment-order", auth, controller.createPaymentOrder);
 
-router.post("/cashfree-callback", controller.cashfreeCallback);
+router.get("/cashfree-callback", controller.cashfreeCallback);
 
 router.post("/spend", auth, controller.spendMoney);
 
