@@ -19,9 +19,27 @@ function calculateCharges(amount, charges) {
 /**
  * WALLET INFO
  */
+// exports.getWalletInfo = async (astrologer_id) => {
+//   const astro = await repo.getAstrologer(astrologer_id);
+//   const withdrawn = await repo.totalWithdrawn(astrologer_id);
+
+//   return {
+//     status: true,
+//     data: {
+//       total_earnings: astro.total_earnings,
+//       wallet_balance: astro.wallet_balance,
+//       total_withdrawn: withdrawn,
+//     },
+//   };
+// };
+
 exports.getWalletInfo = async (astrologer_id) => {
+
   const astro = await repo.getAstrologer(astrologer_id);
+
   const withdrawn = await repo.totalWithdrawn(astrologer_id);
+
+  const charges = await repo.getWithdrawalCharges();
 
   return {
     status: true,
@@ -29,7 +47,18 @@ exports.getWalletInfo = async (astrologer_id) => {
       total_earnings: astro.total_earnings,
       wallet_balance: astro.wallet_balance,
       total_withdrawn: withdrawn,
-    },
+
+      withdrawal_settings: {
+        tds_percent: Number(charges.tds_percent),
+        processing_percent: Number(charges.processing_percent),
+        fixed_processing_fee: Number(charges.fixed_processing_fee),
+        min_withdrawal: Number(charges.min_withdrawal),
+        max_withdrawal: Number(charges.max_withdrawal),
+        suggested_amounts: JSON.parse(
+          charges.suggested_amounts || "[]"
+        )
+      }
+    }
   };
 };
 

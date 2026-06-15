@@ -77,3 +77,20 @@ exports.totalWithdrawn = async (id) => {
   );
   return rows[0].total || 0;
 };
+
+exports.getWithdrawalCharges = async () => {
+  const [rows] = await pool.query(`
+    SELECT
+      tds_percent,
+      processing_percent,
+      fixed_processing_fee,
+      min_withdrawal,
+      max_withdrawal,
+      suggested_amounts
+    FROM withdrawal_charges
+    WHERE is_active = 1
+    LIMIT 1
+  `);
+
+  return rows[0] || null;
+};
