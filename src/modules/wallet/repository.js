@@ -127,9 +127,69 @@ exports.updateTransactionStatus = async (transactionId, status, paymentRef, bala
   await db.query(
     `
     UPDATE wallet_transactions
-    SET status = ?, payment_ref = ?, reference_id = ?, balance_after = ?
+    SET status = ?, reference_id = ?, balance_after = ?
     WHERE id = ?
   `,
-    [status, paymentRef, paymentRef, balanceAfter, transactionId]
+    [status, paymentRef, balanceAfter, transactionId]
   );
+};
+
+exports.finalizeTransaction = async (transactionId, userId, amount, paymentRef) => {
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    const [rows] = await conn.query(
+      `SELECT * FROM wallet_transactions WHERE id = ? FOR UPDATE`,
+      [transactionId]
+    );
+
+    const tx = rows[0];
+    if (!tx) {
+      await conn.rollback();
+      return { updated: false, reason: 'not_found' };
+    }
+
+    if (tx.status === 'completed') {
+      await conn.rollback();
+      return { updated: false, reason: 'already_completed' };
+    }
+
+    // update wallet balance
+    await conn.query(
+      `
+      INSERT INTO wallet (user_id,balance)
+      VALUES (?,?)
+      ON DUPLICATE KEY UPDATE
+      balance = balance + ?
+    `,
+      [userId, amount, amount]
+    );
+
+    const [walletRows] = await conn.query(
+      `SELECT balance FROM wallet WHERE user_id = ?`,
+      [userId]
+    );
+
+    const balanceAfter = walletRows[0]?.balance || null;
+
+    // mark transaction completed and set reference_id, keep payment_ref intact
+    await conn.query(
+      `
+      UPDATE wallet_transactions
+      SET status = ?, reference_id = ?, balance_after = ?
+      WHERE id = ?
+    `,
+      ['completed', paymentRef, balanceAfter, transactionId]
+    );
+
+    await conn.commit();
+
+    return { updated: true, balanceAfter };
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
 };

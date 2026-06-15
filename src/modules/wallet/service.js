@@ -166,22 +166,28 @@ exports.handleCashfreeCallback = async (payload) => {
   console.log('[handleCashfreeCallback] resolved paymentRef', paymentRef);
 
   if (isSuccess) {
-    console.log('[handleCashfreeCallback] marking success, updating balance for user', transaction.user_id, 'amount', transaction.amount);
-    await repo.updateBalance(transaction.user_id, transaction.amount);
+    console.log('[handleCashfreeCallback] attempting atomic finalize for transaction', transaction.id, 'user', transaction.user_id, 'amount', transaction.amount);
 
-    const wallet = await repo.getWallet(transaction.user_id);
-    const balanceAfter = wallet?.balance || transaction.balance_before + transaction.amount;
+    const amountNum = parseFloat(transaction.amount || 0);
+    const finalizeResult = await repo.finalizeTransaction(transaction.id, transaction.user_id, amountNum, paymentRef);
 
-    console.log('[handleCashfreeCallback] updating transaction status to completed', { transactionId: transaction.id, paymentRef, balanceAfter });
-    await repo.updateTransactionStatus(transaction.id, "completed", paymentRef, balanceAfter);
+    if (!finalizeResult.updated) {
+      console.log('[handleCashfreeCallback] transaction already processed or not found', finalizeResult);
+      return {
+        success: true,
+        message: finalizeResult.reason === 'already_completed' ? 'Transaction already completed' : 'Pending transaction not found',
+      };
+    }
+
+    console.log('[handleCashfreeCallback] transaction finalized, balanceAfter', finalizeResult.balanceAfter);
 
     return {
       success: true,
-      message: "Payment verified and wallet updated",
+      message: 'Payment verified and wallet updated',
       data: {
         order_id: orderId,
         amount: transaction.amount,
-        balance_after: balanceAfter
+        balance_after: finalizeResult.balanceAfter
       }
     };
   }
