@@ -84,7 +84,10 @@ exports.getContent = async () => {
         key: item.meta_key,
         title: item.title,
         url: item.content,
-        image: item.image
+        // image: item.image
+         image: item.image
+  ? `${process.env.BASE_URL}/uploads/${item.image}`
+  : null
       });
 
       return;
@@ -113,7 +116,10 @@ exports.getContent = async () => {
       result[type] = {
         title: item.title,
         content: item.content,
-        image: item.image
+        // image: item.image
+         image: item.image
+  ? `${process.env.BASE_URL}/uploads/${item.image}`
+  : null
       };
     }
 
