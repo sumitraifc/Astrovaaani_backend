@@ -127,9 +127,9 @@ exports.updateTransactionStatus = async (transactionId, status, paymentRef, bala
   await db.query(
     `
     UPDATE wallet_transactions
-    SET status = ?, payment_ref = ?, balance_after = ?
+    SET status = ?, payment_ref = ?, reference_id = ?, balance_after = ?
     WHERE id = ?
   `,
-    [status, paymentRef, balanceAfter, transactionId]
+    [status, paymentRef, paymentRef, balanceAfter, transactionId]
   );
 };
