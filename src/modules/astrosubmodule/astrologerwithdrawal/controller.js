@@ -18,12 +18,26 @@ exports.getWalletInfo = async (req, res) => {
   }
 };
 
+// exports.requestWithdraw = async (req, res) => {
+//   try {
+//     const result = await service.requestWithdraw(req.user.id, req.body);
+//     return res.json(result);
+//   } catch (err) {
+//     return res.status(500).json({ status: false, message: err.message });
+//   }
+// };
+
 exports.requestWithdraw = async (req, res) => {
   try {
     const result = await service.requestWithdraw(req.user.id, req.body);
     return res.json(result);
+
   } catch (err) {
-    return res.status(500).json({ status: false, message: err.message });
+
+    return res.status(err.statusCode || 500).json({
+      status: false,
+      message: err.message
+    });
   }
 };
 

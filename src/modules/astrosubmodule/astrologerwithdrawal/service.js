@@ -82,9 +82,15 @@ exports.requestWithdraw = async (astrologer_id, body) => {
     return { status: false, message: "Astrologer not found" };
   }
 
+  // if (amount > astro.wallet_balance) {
+  //   return { status: false, message: "Insufficient balance" };
+  // }
+
   if (amount > astro.wallet_balance) {
-    return { status: false, message: "Insufficient balance" };
-  }
+  const error = new Error("Insufficient balance");
+  error.statusCode = 400;
+  throw error;
+}
 
   // ✅ charges
   const charges = await repo.getCharges();
