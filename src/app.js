@@ -51,6 +51,8 @@ app.use(limiter);
  * =========================
  */
 app.use(express.json());
+// parse application/x-www-form-urlencoded (Cashfree may send form-encoded webhooks)
+app.use(express.urlencoded({ extended: true }));
 
 
 /**

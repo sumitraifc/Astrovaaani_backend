@@ -90,6 +90,7 @@ exports.addTransaction = async (data) => {
 };
 
 exports.addCashfreeTransaction = async (data) => {
+  console.log('[addCashfreeTransaction] inserting', { payment_ref: data.payment_ref, user_id: data.user_id, amount: data.amount });
   await db.query(
     `
     INSERT INTO wallet_transactions
@@ -111,15 +112,18 @@ exports.addCashfreeTransaction = async (data) => {
 };
 
 exports.getTransactionByPaymentRef = async (paymentRef) => {
+  console.log('[getTransactionByPaymentRef] paymentRef', paymentRef);
   const [rows] = await db.query(
     `SELECT * FROM wallet_transactions WHERE payment_ref = ? LIMIT 1`,
     [paymentRef]
   );
+  console.log('[getTransactionByPaymentRef] rows length', rows.length);
 
   return rows[0];
 };
 
 exports.updateTransactionStatus = async (transactionId, status, paymentRef, balanceAfter) => {
+  console.log('[updateTransactionStatus] transactionId', transactionId, 'status', status, 'paymentRef', paymentRef, 'balanceAfter', balanceAfter);
   await db.query(
     `
     UPDATE wallet_transactions

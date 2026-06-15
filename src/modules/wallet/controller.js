@@ -60,10 +60,25 @@ exports.createPaymentOrder = async (req, res) => {
 
 exports.cashfreeCallback = async (req, res) => {
   try {
-    const result = await service.handleCashfreeCallback(req.body);
+    console.log('[cashfreeCallback] received', {
+      time: new Date().toISOString(),
+      method: req.method,
+      url: req.originalUrl,
+      headers: req.headers,
+      bodyPresent: req.body && Object.keys(req.body).length,
+      queryPresent: req.query && Object.keys(req.query).length
+    });
+
+    const payload = (req.body && Object.keys(req.body).length) ? req.body : req.query;
+    console.log('[cashfreeCallback] using payload', payload);
+
+    const result = await service.handleCashfreeCallback(payload);
+
+    console.log('[cashfreeCallback] result', result);
 
     res.json(result);
   } catch (err) {
+    console.error('[cashfreeCallback] error', err && err.stack ? err.stack : err);
     res.status(400).json({
       success: false,
       message: err.message

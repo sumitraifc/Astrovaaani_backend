@@ -113,19 +113,28 @@ exports.createPaymentOrder = async (userId, amount) => {
 };
 
 exports.handleCashfreeCallback = async (payload) => {
+  console.log('[handleCashfreeCallback] start', { time: new Date().toISOString(), payload });
+
   const orderId = payload.order_id || payload.reference_id;
   const orderStatus = (payload.order_status || payload.tx_status || payload.status || "").toUpperCase();
 
+  console.log('[handleCashfreeCallback] parsed', { orderId, orderStatus });
+
   if (!orderId) {
+    console.error('[handleCashfreeCallback] missing order_id', payload);
     throw new Error("Missing order_id in callback payload");
   }
 
+  console.log('[handleCashfreeCallback] looking up transaction for', orderId);
   const transaction = await repo.getTransactionByPaymentRef(orderId);
+  console.log('[handleCashfreeCallback] transaction found', transaction);
   if (!transaction) {
+    console.error('[handleCashfreeCallback] pending transaction not found for', orderId);
     throw new Error("Pending payment transaction not found");
   }
 
   if (transaction.status === "completed") {
+    console.log('[handleCashfreeCallback] transaction already completed', transaction.id);
     return {
       success: true,
       message: "Transaction already completed"
@@ -136,11 +145,13 @@ exports.handleCashfreeCallback = async (payload) => {
   const paymentRef = payload.payment_id || payload.tx_id || orderId;
 
   if (isSuccess) {
+    console.log('[handleCashfreeCallback] marking success, updating balance for user', transaction.user_id, 'amount', transaction.amount);
     await repo.updateBalance(transaction.user_id, transaction.amount);
 
     const wallet = await repo.getWallet(transaction.user_id);
     const balanceAfter = wallet?.balance || transaction.balance_before + transaction.amount;
 
+    console.log('[handleCashfreeCallback] updating transaction status to completed', { transactionId: transaction.id, paymentRef, balanceAfter });
     await repo.updateTransactionStatus(transaction.id, "completed", paymentRef, balanceAfter);
 
     return {
@@ -154,6 +165,7 @@ exports.handleCashfreeCallback = async (payload) => {
     };
   }
 
+  console.log('[handleCashfreeCallback] marking failed for transaction', transaction.id);
   await repo.updateTransactionStatus(transaction.id, "failed", paymentRef, transaction.balance_before);
 
   return {
