@@ -1,7 +1,9 @@
 const service = require("./service");
 
+/**
+ * STORE PANCHANG
+ */
 exports.storePanchang = async (req, res) => {
-
     try {
 
         const { date } = req.body;
@@ -19,7 +21,7 @@ exports.storePanchang = async (req, res) => {
 
     } catch (error) {
 
-        console.error(error);
+        console.error("STORE PANCHANG ERROR =>", error);
 
         return res.status(500).json({
             status: false,
@@ -28,8 +30,10 @@ exports.storePanchang = async (req, res) => {
     }
 };
 
+/**
+ * GET ALL PANCHANG
+ */
 exports.getAll = async (req, res) => {
-
     try {
 
         const data = await service.getAll();
@@ -41,6 +45,8 @@ exports.getAll = async (req, res) => {
 
     } catch (error) {
 
+        console.error("GET ALL PANCHANG ERROR =>", error);
+
         return res.status(500).json({
             status: false,
             message: error.message
@@ -48,8 +54,10 @@ exports.getAll = async (req, res) => {
     }
 };
 
+/**
+ * GET PANCHANG BY DATE
+ */
 exports.getByDate = async (req, res) => {
-
     try {
 
         const { date } = req.body;
@@ -66,6 +74,8 @@ exports.getByDate = async (req, res) => {
         return res.json(result);
 
     } catch (error) {
+
+        console.error("GET PANCHANG BY DATE ERROR =>", error);
 
         return res.status(500).json({
             status: false,

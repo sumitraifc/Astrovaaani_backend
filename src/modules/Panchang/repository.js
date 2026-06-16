@@ -1,6 +1,10 @@
 const pool = require("../../config/db");
 
+/**
+ * FIND BY DATE
+ */
 exports.findByDate = async (date) => {
+
     const [rows] = await pool.query(
         `SELECT * FROM panchang WHERE date = ?`,
         [date]
@@ -9,11 +13,16 @@ exports.findByDate = async (date) => {
     return rows[0] || null;
 };
 
+
+/**
+ * CREATE PANCHANG
+ */
 exports.create = async (data) => {
 
     const [result] = await pool.query(
         `
         INSERT INTO panchang (
+
             date,
             day,
 
@@ -61,11 +70,20 @@ exports.create = async (data) => {
             shubh_works,
             avoid_works,
 
-            third_party_id
+            third_party_id,
+
+            month_overall_energy,
+            total_days_in_month,
+            total_festivals,
+            important_festivals,
+            best_days
+
         )
         VALUES (
+
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+
         )
         `,
         data
@@ -74,6 +92,10 @@ exports.create = async (data) => {
     return result.insertId;
 };
 
+
+/**
+ * GET ALL
+ */
 exports.getAll = async () => {
 
     const [rows] = await pool.query(`
@@ -83,13 +105,4 @@ exports.getAll = async () => {
     `);
 
     return rows;
-};
-
-exports.findByDate = async (date) => {
-    const [rows] = await pool.query(
-        `SELECT * FROM panchang WHERE date = ?`,
-        [date]
-    );
-
-    return rows[0] || null;
 };

@@ -14,11 +14,12 @@ exports.storePanchang = async (date) => {
     }
 
     const response = await axios.post(
-        "https://fctechbackend.shop/api/panchang/date",
+        "https://fctechbackend.shop/api/panchang/panchang/date-with-month",
         { date }
     );
 
-    const p = response.data.data;
+    const p = response.data.date_detail;
+    const month = response.data.month_detail;
 
     const payload = [
 
@@ -69,7 +70,14 @@ exports.storePanchang = async (date) => {
         JSON.stringify(p.shubh_works || []),
         JSON.stringify(p.avoid_works || []),
 
-        p._id
+        p._id,
+
+        // NEW MONTH OVERVIEW FIELDS
+        month?.month_overview?.overall_energy,
+        month?.month_overview?.total_days_in_month,
+        month?.month_overview?.total_festivals,
+        JSON.stringify(month?.month_overview?.important_festivals || []),
+        JSON.stringify(month?.month_overview?.best_days || [])
     ];
 
     const id = await repo.create(payload);
@@ -81,9 +89,11 @@ exports.storePanchang = async (date) => {
     };
 };
 
+
 exports.getAll = async () => {
     return repo.getAll();
 };
+
 
 exports.getPanchangByDate = async (date) => {
 
@@ -102,6 +112,7 @@ exports.getPanchangByDate = async (date) => {
     return {
         status: true,
         data: {
+
             tithi: {
                 name: data.tithi_name,
                 description: data.tithi_description,
@@ -164,7 +175,27 @@ exports.getPanchangByDate = async (date) => {
             festivals: JSON.parse(data.festivals || "[]"),
             vrat: JSON.parse(data.vrat || "[]"),
             shubh_works: JSON.parse(data.shubh_works || "[]"),
-            avoid_works: JSON.parse(data.avoid_works || "[]")
+            avoid_works: JSON.parse(data.avoid_works || "[]"),
+
+            // NEW MONTH DETAIL
+            month_detail: {
+                month_overview: {
+
+                    overall_energy: data.month_overall_energy,
+
+                    total_days_in_month: data.total_days_in_month,
+
+                    total_festivals: data.total_festivals,
+
+                    important_festivals: JSON.parse(
+                        data.important_festivals || "[]"
+                    ),
+
+                    best_days: JSON.parse(
+                        data.best_days || "[]"
+                    )
+                }
+            }
         }
     };
 };
