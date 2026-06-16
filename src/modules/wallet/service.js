@@ -112,6 +112,20 @@ exports.createPaymentOrder = async (userId, amount) => {
   };
 };
 
+// Helper function to retry with exponential backoff
+const retryWithBackoff = async (fn, maxRetries = 3, initialDelayMs = 100) => {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (attempt === maxRetries) throw err;
+      const delayMs = initialDelayMs * Math.pow(2, attempt - 1);
+      console.log(`[retryWithBackoff] attempt ${attempt} failed, retrying in ${delayMs}ms:`, err.message);
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+    }
+  }
+};
+
 exports.handleCashfreeCallback = async (payload) => {
   console.log('[handleCashfreeCallback] start', { time: new Date().toISOString(), payload });
 
@@ -140,7 +154,20 @@ exports.handleCashfreeCallback = async (payload) => {
   }
 
   console.log('[handleCashfreeCallback] looking up transaction for', orderId);
-  const transaction = await repo.getTransactionByPaymentRef(orderId);
+  
+  // Retry with exponential backoff to handle race conditions where callback arrives before transaction is persisted
+  let transaction;
+  try {
+    transaction = await retryWithBackoff(
+      () => repo.getTransactionByPaymentRef(orderId),
+      3,
+      100
+    );
+  } catch (err) {
+    console.error('[handleCashfreeCallback] failed to find transaction after retries for', orderId);
+    throw new Error("Pending payment transaction not found");
+  }
+  
   console.log('[handleCashfreeCallback] transaction found', transaction);
   if (!transaction) {
     console.error('[handleCashfreeCallback] pending transaction not found for', orderId);

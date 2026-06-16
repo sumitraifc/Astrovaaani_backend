@@ -76,10 +76,16 @@ exports.cashfreeCallback = async (req, res) => {
 
     console.log('[cashfreeCallback] result', result);
 
-    res.json(result);
+    // Always return 200 OK for webhook (transaction was processed or already completed)
+    res.status(200).json(result);
   } catch (err) {
     console.error('[cashfreeCallback] error', err && err.stack ? err.stack : err);
-    res.status(400).json({
+    
+    // Return 202 Accepted for transient errors (Cashfree will retry)
+    // Return 400 for invalid payloads
+    const statusCode = err.message?.includes('missing order_id') ? 400 : 202;
+    
+    res.status(statusCode).json({
       success: false,
       message: err.message
     });

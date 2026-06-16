@@ -84,10 +84,12 @@ FROM
 
   UNION ALL
 
+  
   SELECT price AS amount
-  FROM live_sessions
-  WHERE astrologer_id = ?
-  AND status = 'completed'
+FROM orders
+WHERE astrologer_id = ?
+AND consultation_type = 'live'
+AND status = 'completed'
 
 ) earnings
 `,
@@ -201,23 +203,28 @@ exports.getHistory = async (
       ]
     );
 
-    const [live] = await db.query(
+const liveFilter = buildDateFilter(
+  from,
+  to,
+  "created_at"
+);
+
+const [live] = await db.query(
 `
 SELECT
   id,
   price,
-  start_time,
-  end_time,
   status,
   created_at
-FROM live_sessions
+FROM orders
 WHERE astrologer_id = ?
+AND consultation_type = 'live'
 AND status = 'completed'
-${buildDateFilter(from, to, "created_at").sql}
+${liveFilter.sql}
 `,
 [
   astrologerId,
-  ...buildDateFilter(from, to, "created_at").params
+  ...liveFilter.params
 ]
 );
 
