@@ -103,6 +103,7 @@ module.exports = (io, socket) => {
 // "See Live" button click — auto join
 // =========================================
 socket.on("get_first_live", async (data, callback) => {
+    console.log("GET_FIRST_LIVE DATA =>", data);
   try {
     const { user_id } = data;
 

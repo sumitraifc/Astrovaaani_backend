@@ -127,7 +127,8 @@ exports.generateViewerToken = async (body) => {
     const privilegeExpiredTs = Math.floor(Date.now() / 1000) + expireTime;
 
     console.log("🔑 GENERATING AUDIENCE TOKEN...");
-
+console.log("👤 USER ID =>", user_id);
+console.log("🎯 GENERATED UID =>", userUid);
     // AUDIENCE token — sirf dekh sakta hai, publish nahi
     const audienceToken = RtcTokenBuilder.buildTokenWithUid(
       APP_ID,
