@@ -1,7 +1,7 @@
 const pool = require("../../config/db");
 
 /**
- * FIND BY DATE
+ * FIND PANCHANG BY DATE
  */
 exports.findByDate = async (date) => {
 
@@ -94,15 +94,64 @@ exports.create = async (data) => {
 
 
 /**
- * GET ALL
+ * INSERT MONTH DATE
  */
-exports.getAll = async () => {
+exports.insertMonthDate = async (data) => {
 
-    const [rows] = await pool.query(`
+    await pool.query(
+        `
+        INSERT INTO panchang_month_dates (
+
+            panchang_date,
+            date,
+            day,
+            tithi,
+            nakshatra,
+            festival,
+            vrat,
+            auspicious,
+            is_selected_date
+
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `,
+        data
+    );
+};
+
+
+/**
+ * GET MONTH DATES
+ */
+exports.getMonthDates = async (panchangDate) => {
+
+    const [rows] = await pool.query(
+        `
         SELECT *
-        FROM panchang
-        ORDER BY date DESC
-    `);
+        FROM panchang_month_dates
+        WHERE panchang_date = ?
+        ORDER BY date ASC
+        `,
+        [panchangDate]
+    );
 
     return rows;
 };
+
+
+/**
+ * GET ALL PANCHANG
+ */
+exports.getAll = async () => {
+
+    const [rows] = await pool.query(
+        `
+        SELECT *
+        FROM panchang
+        ORDER BY date DESC
+        `
+    );
+
+    return rows;
+};
+
