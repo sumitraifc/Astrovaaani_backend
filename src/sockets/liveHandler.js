@@ -605,6 +605,15 @@ socket.on("get_first_live", async (data, callback) => {
         [stream_id, user_id, astrologer_id, giftAmount, message || null, txnResult.insertId]
       );
 
+      // Astrologer wallet credit
+await db.query(
+  `UPDATE astrologers
+   SET
+     wallet_balance = wallet_balance + ?,
+     total_earnings = total_earnings + ?
+   WHERE id = ?`,
+  [giftAmount, giftAmount, astrologer_id]
+);
       // ===============================
 // ORDER CREATE FOR LIVE SESSION
 // ===============================
