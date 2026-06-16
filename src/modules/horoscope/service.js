@@ -19,6 +19,7 @@ Pisces: "Meen"
 const timeframeMap = {
 daily: "today",
 weekly: "week",
+monthly: "month",
 yearly: "year"
 };
 
