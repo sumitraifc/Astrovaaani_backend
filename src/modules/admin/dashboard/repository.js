@@ -26,7 +26,7 @@ exports.getStats = async () => {
       COUNT(*)                     AS totalChats,
       COALESCE(SUM(duration), 0)  AS chatMinutes
     FROM chat_conversations
-    WHERE status = 'completed'
+     WHERE status IN ('ended', 'active', 'blocked') 
   `);
 
   // const [[callStats]] = await pool.query(`
@@ -65,7 +65,7 @@ exports.getStats = async () => {
       COALESCE(SUM(amount), 0) AS todayChatRevenue,
       COALESCE(SUM(amount * admin_commission / 100), 0) AS todayChatAdmin
     FROM chat_conversations
-    WHERE status = 'completed' AND DATE(created_at) = CURDATE()
+    WHERE status IN ('ended', 'active', 'blocked') AND DATE(created_at) = CURDATE()
   `);
 
   const [[todayCall]] = await pool.query(`
@@ -110,7 +110,7 @@ exports.getRevenueChart = async () => {
       COALESCE(SUM(amount), 0) AS chatTotal,
       COALESCE(SUM(amount * admin_commission / 100), 0) AS chatAdmin
     FROM chat_conversations
-    WHERE status = 'completed' AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+    WHERE status IN ('ended', 'active', 'blocked')  AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
     GROUP BY year, monthNum, month
     ORDER BY year, monthNum
   `);
@@ -157,7 +157,7 @@ exports.getRecentSessions = async () => {
     FROM chat_conversations cc
     JOIN users u ON u.id = cc.user_id
     JOIN astrologers a ON a.id = cc.astrologer_id
-    WHERE cc.status = 'completed'
+     WHERE cc.status IN ('ended', 'active', 'blocked') 
     ORDER BY cc.created_at DESC LIMIT 5
   `);
 
