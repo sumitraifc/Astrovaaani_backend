@@ -200,7 +200,7 @@ exports.getRecentSessions = async () => {
     SELECT
       u.name AS user, a.name AS astro,
       CONCAT(UPPER(ch.call_type)) AS type,
-      ch.duration, ch.amount,
+        CEIL(ch.duration / 60) AS duration, ch.amount,
       ROUND(ch.amount * ch.admin_commission_percent / 100) AS adminCut,
       ch.created_at AS time
     FROM call_history ch
