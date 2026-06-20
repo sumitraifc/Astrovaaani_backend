@@ -18,14 +18,51 @@ exports.getUserTransactions = async ({ search, type, status, page, limit }) => {
      LEFT JOIN users u ON u.id = wt.user_id ${where}`, params
   );
 
+  // const [rows] = await pool.query(`
+  //   SELECT wt.id, wt.type, wt.amount, wt.balance_before, wt.balance_after,
+  //     wt.reason, wt.payment_method, wt.payment_ref, wt.status, wt.created_at,
+  //     u.id AS user_id, u.name, u.mobile AS phone
+  //   FROM wallet_transactions wt
+  //   LEFT JOIN users u ON u.id = wt.user_id
+  //   ${where} ORDER BY wt.created_at DESC LIMIT ? OFFSET ?
+  // `, [...params, limit, offset]);
   const [rows] = await pool.query(`
-    SELECT wt.id, wt.type, wt.amount, wt.balance_before, wt.balance_after,
-      wt.reason, wt.payment_method, wt.payment_ref, wt.status, wt.created_at,
-      u.id AS user_id, u.name, u.mobile AS phone
-    FROM wallet_transactions wt
-    LEFT JOIN users u ON u.id = wt.user_id
-    ${where} ORDER BY wt.created_at DESC LIMIT ? OFFSET ?
-  `, [...params, limit, offset]);
+  SELECT 
+    wt.*,
+
+    -- Transaction ID for UI
+    CONCAT('TXN', wt.id) AS transaction_id,
+
+    -- User Info
+    u.id AS user_id,
+    u.name AS user_name,
+    u.mobile AS user_phone,
+    u.email AS user_email,
+
+    -- Extra helpful computed fields
+    CASE 
+      WHEN wt.type = 'credit' THEN wt.amount
+      ELSE 0 
+    END AS credit_amount,
+
+    CASE 
+      WHEN wt.type = 'debit' THEN wt.amount
+      ELSE 0 
+    END AS debit_amount,
+
+    -- Net display flag
+    CASE 
+      WHEN wt.type = 'credit' THEN '+'
+      ELSE '-'
+    END AS sign
+
+  FROM wallet_transactions wt
+  LEFT JOIN users u ON u.id = wt.user_id
+
+  ${where}
+  ORDER BY wt.created_at DESC
+  LIMIT ? OFFSET ?
+`, [...params, limit, offset]);
 
   return { total, data: rows };
 };
