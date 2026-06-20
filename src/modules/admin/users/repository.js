@@ -1,23 +1,168 @@
 const pool = require('../../../config/db');
 
+// exports.getAll = async ({ search, status, page, limit }) => {
+//   const offset = (page - 1) * limit;
+//   let where = 'WHERE 1=1';
+//   const params = [];
+//   if (search) { where += ' AND (u.name LIKE ? OR u.mobile LIKE ? OR u.email LIKE ?)'; const s = `%${search}%`; params.push(s, s, s); }
+//   if (status && status !== 'all') { where += ' AND u.status = ?'; params.push(status); }
+
+//   const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM users u ${where}`, params);
+//   const [rows] = await pool.query(`
+//     SELECT u.id, u.name, u.email, u.mobile, u.status, u.profile_image, u.created_at,
+//       COALESCE(w.balance, 0) AS wallet
+//     FROM users u
+//     LEFT JOIN wallet w ON w.user_id = u.id
+//     ${where} ORDER BY u.id DESC LIMIT ? OFFSET ?
+//   `, [...params, limit, offset]);
+
+//   return { total, data: rows };
+// };
+
 exports.getAll = async ({ search, status, page, limit }) => {
   const offset = (page - 1) * limit;
-  let where = 'WHERE 1=1';
-  const params = [];
-  if (search) { where += ' AND (u.name LIKE ? OR u.mobile LIKE ? OR u.email LIKE ?)'; const s = `%${search}%`; params.push(s, s, s); }
-  if (status && status !== 'all') { where += ' AND u.status = ?'; params.push(status); }
 
-  const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM users u ${where}`, params);
-  const [rows] = await pool.query(`
-    SELECT u.id, u.name, u.email, u.mobile, u.status, u.profile_image, u.created_at,
+  let where = "WHERE 1=1";
+  const params = [];
+
+  if (search) {
+    where +=
+      " AND (u.name LIKE ? OR u.mobile LIKE ? OR u.email LIKE ?)";
+    const s = `%${search}%`;
+    params.push(s, s, s);
+  }
+
+  if (status && status !== "all") {
+    where += " AND u.status = ?";
+    params.push(status);
+  }
+
+  // =========================
+  // 1. TOTAL COUNT
+  // =========================
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM users u ${where}`,
+    params
+  );
+
+  // =========================
+  // 2. MAIN USERS
+  // =========================
+  const [rows] = await pool.query(
+    `
+    SELECT 
+      u.id,
+      u.name,
+      u.email,
+      u.mobile,
+      u.status,
+      u.profile_image,
+      u.created_at,
       COALESCE(w.balance, 0) AS wallet
     FROM users u
     LEFT JOIN wallet w ON w.user_id = u.id
-    ${where} ORDER BY u.id DESC LIMIT ? OFFSET ?
-  `, [...params, limit, offset]);
+    ${where}
+    ORDER BY u.id DESC
+    LIMIT ? OFFSET ?
+    `,
+    [...params, limit, offset]
+  );
 
-  return { total, data: rows };
+  const userIds = rows.map((r) => r.id);
+
+  // =========================
+  // 3. SPENT DATA
+  // =========================
+  const [spentRows] = await pool.query(
+    `
+    SELECT 
+      u.id,
+
+      COALESCE(SUM(cc.amount),0) AS chatSpent,
+      COALESCE(SUM(ch.amount),0) AS callSpent,
+      COALESCE(SUM(lg.amount),0) AS giftSpent
+
+    FROM users u
+
+    LEFT JOIN chat_conversations cc 
+      ON cc.user_id = u.id 
+      AND cc.status IN ('ended','active','blocked')
+
+    LEFT JOIN call_history ch 
+      ON ch.user_id = u.id 
+      AND ch.status IN ('answered','hangup','disconnect')
+
+    LEFT JOIN live_gifts lg 
+      ON lg.user_id = u.id
+
+    WHERE u.id IN (?)
+    GROUP BY u.id
+    `,
+    [userIds]
+  );
+
+  // =========================
+  // 4. SESSION DATA
+  // =========================
+  const [sessionRows] = await pool.query(
+    `
+    SELECT 
+      u.id,
+      COUNT(DISTINCT cc.id) AS chatSessions,
+      COUNT(DISTINCT ch.id) AS callSessions
+
+    FROM users u
+
+    LEFT JOIN chat_conversations cc ON cc.user_id = u.id
+    LEFT JOIN call_history ch ON ch.user_id = u.id
+
+    WHERE u.id IN (?)
+    GROUP BY u.id
+    `,
+    [userIds]
+  );
+
+  // =========================
+  // 5. MAP MERGE
+  // =========================
+  const spentMap = new Map(spentRows.map((r) => [r.id, r]));
+  const sessionMap = new Map(sessionRows.map((r) => [r.id, r]));
+
+  const finalData = rows.map((r) => {
+    const spent = spentMap.get(r.id) || {};
+    const session = sessionMap.get(r.id) || {};
+
+    return {
+      ...r,
+
+      // 🔥 PROFILE IMAGE FIX
+      profile_image: r.profile_image
+        ? `${process.env.BASE_URL}/uploads/${r.profile_image}`
+        : null,
+
+      // 💰 SPENDING
+      totalSpent:
+        Number(spent.chatSpent || 0) +
+        Number(spent.callSpent || 0) +
+        Number(spent.giftSpent || 0),
+
+      chatSpent: Number(spent.chatSpent || 0),
+      callSpent: Number(spent.callSpent || 0),
+      giftSpent: Number(spent.giftSpent || 0),
+
+      // 📊 SESSIONS
+      totalSessions:
+        Number(session.chatSessions || 0) +
+        Number(session.callSessions || 0),
+
+      chatSessions: Number(session.chatSessions || 0),
+      callSessions: Number(session.callSessions || 0),
+    };
+  });
+
+  return { total, data: finalData };
 };
+
 
 exports.getById = async (id) => {
   const [[user]] = await pool.query(`
