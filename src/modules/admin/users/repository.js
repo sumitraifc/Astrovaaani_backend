@@ -73,33 +73,36 @@ exports.getAll = async ({ search, status, page, limit }) => {
   // =========================
   // 3. SPENT DATA
   // =========================
-  const [spentRows] = await pool.query(
-    `
-    SELECT 
-      u.id,
+ const [spentRows] = await pool.query(`
+  SELECT 
+    u.id,
 
-      COALESCE(SUM(cc.amount),0) AS chatSpent,
-      COALESCE(SUM(ch.amount),0) AS callSpent,
-      COALESCE(SUM(lg.amount),0) AS giftSpent
-
-    FROM users u
-
-    LEFT JOIN chat_conversations cc 
-      ON cc.user_id = u.id 
+    -- CHAT
+    COALESCE((
+      SELECT SUM(amount)
+      FROM chat_conversations cc
+      WHERE cc.user_id = u.id
       AND cc.status IN ('ended','active','blocked')
+    ),0) AS chatSpent,
 
-    LEFT JOIN call_history ch 
-      ON ch.user_id = u.id 
+    -- CALL
+    COALESCE((
+      SELECT SUM(amount)
+      FROM call_history ch
+      WHERE ch.user_id = u.id
       AND ch.status IN ('answered','hangup','disconnect')
+    ),0) AS callSpent,
 
-    LEFT JOIN live_gifts lg 
-      ON lg.user_id = u.id
+    -- GIFTS
+    COALESCE((
+      SELECT SUM(amount)
+      FROM live_gifts lg
+      WHERE lg.user_id = u.id
+    ),0) AS giftSpent
 
-    WHERE u.id IN (?)
-    GROUP BY u.id
-    `,
-    [userIds]
-  );
+  FROM users u
+  WHERE u.id IN (?)
+`, [userIds]);
 
   // =========================
   // 4. SESSION DATA
