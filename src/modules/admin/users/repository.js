@@ -235,7 +235,7 @@ exports.getById = async (id) => {
         ch.user_review,
         ch.created_at
       FROM call_history ch
-      JOIN astrologers a ON a.id = ch.astrologer_id
+      JOIN astrologers a ON a.id = ch.agent_id
       WHERE ch.user_id = ?
     )
 
