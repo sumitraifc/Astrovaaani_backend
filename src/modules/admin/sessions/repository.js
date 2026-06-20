@@ -154,14 +154,18 @@ exports.getStats = async () => {
     FROM chat_conversations
   `);
 
-  const [[call]] = await pool.query(`
+   const [[call]] = await pool.query(`
     SELECT
       SUM(CASE WHEN call_type='audio' THEN 1 ELSE 0 END) AS audio_total,
       SUM(CASE WHEN call_type='video' THEN 1 ELSE 0 END) AS video_total,
+
       SUM(CASE WHEN call_type='audio' AND status='completed' THEN 1 ELSE 0 END) AS audio_completed,
       SUM(CASE WHEN call_type='video' AND status='completed' THEN 1 ELSE 0 END) AS video_completed,
-      COALESCE(SUM(CASE WHEN call_type='audio' THEN duration ELSE 0 END), 0) AS audio_minutes,
-      COALESCE(SUM(CASE WHEN call_type='video' THEN duration ELSE 0 END), 0) AS video_minutes,
+
+      -- 🔥 FIXED: seconds → minutes
+      COALESCE(SUM(CASE WHEN call_type='audio' THEN CEIL(duration / 60) ELSE 0 END), 0) AS audio_minutes,
+      COALESCE(SUM(CASE WHEN call_type='video' THEN CEIL(duration / 60) ELSE 0 END), 0) AS video_minutes,
+
       COALESCE(SUM(CASE WHEN call_type='audio' THEN amount ELSE 0 END), 0) AS audio_revenue,
       COALESCE(SUM(CASE WHEN call_type='video' THEN amount ELSE 0 END), 0) AS video_revenue
     FROM call_history
