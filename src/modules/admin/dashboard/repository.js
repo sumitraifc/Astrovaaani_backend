@@ -39,12 +39,32 @@ exports.getStats = async () => {
   //   WHERE status = 'completed'
   // `);
 
-  const [[callStats]] = await pool.query(`
+//   const [[callStats]] = await pool.query(`
+//   SELECT
+//     COALESCE(SUM(amount), 0) AS callRevenue,
+//     COALESCE(SUM(amount * admin_commission_percent / 100), 0) AS callAdminIncome,
+//     COUNT(*) AS totalCalls,
+//     COALESCE(SUM(duration), 0) AS callMinutes,
+
+//     -- Audio
+//     SUM(CASE WHEN call_type='audio' THEN 1 ELSE 0 END) AS totalAudioSessions,
+//     COALESCE(SUM(CASE WHEN call_type='audio' THEN amount ELSE 0 END),0) AS audioRevenue,
+
+//     -- Video
+//     SUM(CASE WHEN call_type='video' THEN 1 ELSE 0 END) AS totalVideoSessions,
+//     COALESCE(SUM(CASE WHEN call_type='video' THEN amount ELSE 0 END),0) AS videoRevenue
+
+//   FROM call_history
+//   WHERE status IN ('answered', 'hangup', 'disconnect')
+// `);
+const [[callStats]] = await pool.query(`
   SELECT
     COALESCE(SUM(amount), 0) AS callRevenue,
     COALESCE(SUM(amount * admin_commission_percent / 100), 0) AS callAdminIncome,
     COUNT(*) AS totalCalls,
-    COALESCE(SUM(duration), 0) AS callMinutes,
+
+    -- 🔥 FIXED: minutes rounding per session
+    SUM(CEIL(duration / 60)) AS callMinutes,
 
     -- Audio
     SUM(CASE WHEN call_type='audio' THEN 1 ELSE 0 END) AS totalAudioSessions,
