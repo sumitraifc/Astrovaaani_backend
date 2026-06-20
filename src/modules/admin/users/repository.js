@@ -305,24 +305,73 @@ exports.getById = async (id) => {
   // =========================
   // 6. ASTROLOGER REVIEWS
   // =========================
-  const [reviews] = await pool.query(`
-    SELECT 
-      ar.id,
-      ar.astrologer_id,
-      a.name AS astrologer_name,
-      ar.user_id,
-      ar.booking_type,
-      ar.rating,
-      ar.comment,
-      ar.status,
-      ar.created_at,
-      ar.updated_at
-    FROM astrologer_reviews ar
-    JOIN astrologers a ON a.id = ar.astrologer_id
-    WHERE ar.user_id = ?
-    ORDER BY ar.created_at DESC
-    LIMIT 20
-  `, [id]);
+const [reviews] = await pool.query(`
+  SELECT 
+    ar.id,
+    ar.astrologer_id,
+    a.name AS astrologer,
+
+    ar.user_id,
+    ar.booking_type AS type,
+    ar.rating,
+    ar.comment AS review,
+
+    ar.status,
+    ar.created_at AS date
+
+  FROM astrologer_reviews ar
+  JOIN astrologers a ON a.id = ar.astrologer_id
+  WHERE ar.user_id = ?
+  ORDER BY ar.created_at DESC
+  LIMIT 20
+`, [id]);
+
+const [[admin]] = await pool.query(`
+  SELECT 
+
+    -- Chat admin income
+    COALESCE((
+      SELECT SUM(amount * admin_commission / 100)
+      FROM chat_conversations
+      WHERE user_id = ?
+      AND status IN ('ended','active','blocked')
+    ),0) AS chatAdminIncome,
+
+    -- Call admin income
+    COALESCE((
+      SELECT SUM(amount * admin_commission_percent / 100)
+      FROM call_history
+      WHERE user_id = ?
+      AND status IN ('answered','hangup','disconnect')
+    ),0) AS callAdminIncome,
+
+    -- Gift admin income (agar koi commission hai)
+    COALESCE((
+      SELECT SUM(amount * 0.2)
+      FROM live_gifts
+      WHERE user_id = ?
+    ),0) AS giftAdminIncome
+
+`, [id, id, id]);
+
+const [[callBreakdown]] = await pool.query(`
+  SELECT
+
+    SUM(CASE WHEN call_type='audio' THEN amount ELSE 0 END) AS audioSpent,
+    SUM(CASE WHEN call_type='video' THEN amount ELSE 0 END) AS videoSpent,
+
+    SUM(CASE WHEN call_type='audio' THEN amount * admin_commission_percent / 100 ELSE 0 END) AS audioAdminIncome,
+
+    SUM(CASE WHEN call_type='video' THEN amount * admin_commission_percent / 100 ELSE 0 END) AS videoAdminIncome,
+
+    SUM(CASE WHEN call_type='audio' THEN CEIL(duration/60) ELSE 0 END) AS audioMinutes,
+
+    SUM(CASE WHEN call_type='video' THEN CEIL(duration/60) ELSE 0 END) AS videoMinutes
+
+  FROM call_history
+  WHERE user_id = ?
+  AND status IN ('answered','hangup','disconnect')
+`, [id]);
 
   // =========================
   // 7. FINAL RESPONSE
@@ -354,8 +403,29 @@ exports.getById = async (id) => {
     totalSessions:
       Number(counts.chatSessions || 0) +
       Number(counts.callSessions || 0),
+
+    // 💰 ADMIN INCOME
+chatAdminIncome: Number(admin.chatAdminIncome || 0),
+callAdminIncome: Number(admin.callAdminIncome || 0),
+giftAdminIncome: Number(admin.giftAdminIncome || 0),
+
+totalAdminIncome:
+  Number(admin.chatAdminIncome || 0) +
+  Number(admin.callAdminIncome || 0) +
+  Number(admin.giftAdminIncome || 0),    
+
+  audioSpent: Number(callBreakdown.audioSpent || 0),
+videoSpent: Number(callBreakdown.videoSpent || 0),
+
+audioAdminIncome: Number(callBreakdown.audioAdminIncome || 0),
+videoAdminIncome: Number(callBreakdown.videoAdminIncome || 0),
+
+audioMinutes: Number(callBreakdown.audioMinutes || 0),
+videoMinutes: Number(callBreakdown.videoMinutes || 0),
+
   };
 };
+
 exports.updateStatus = async (id, status) => {
   await pool.query('UPDATE users SET status = ? WHERE id = ?', [status, id]);
 };
