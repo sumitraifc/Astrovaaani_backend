@@ -29,16 +29,34 @@ exports.getStats = async () => {
     WHERE status = 'completed'
   `);
 
-  const [[callStats]] = await pool.query(`
-    SELECT
-      COALESCE(SUM(amount), 0)   AS callRevenue,
-      COALESCE(SUM(amount * admin_commission_percent / 100), 0) AS callAdminIncome,
-      COUNT(*)                    AS totalCalls,
-      COALESCE(SUM(duration), 0) AS callMinutes
-    FROM call_history
-    WHERE status = 'completed'
-  `);
+  // const [[callStats]] = await pool.query(`
+  //   SELECT
+  //     COALESCE(SUM(amount), 0)   AS callRevenue,
+  //     COALESCE(SUM(amount * admin_commission_percent / 100), 0) AS callAdminIncome,
+  //     COUNT(*)                    AS totalCalls,
+  //     COALESCE(SUM(duration), 0) AS callMinutes
+  //   FROM call_history
+  //   WHERE status = 'completed'
+  // `);
 
+  const [[callStats]] = await pool.query(`
+  SELECT
+    COALESCE(SUM(amount), 0) AS callRevenue,
+    COALESCE(SUM(amount * admin_commission_percent / 100), 0) AS callAdminIncome,
+    COUNT(*) AS totalCalls,
+    COALESCE(SUM(duration), 0) AS callMinutes,
+
+    -- Audio
+    SUM(CASE WHEN call_type='audio' THEN 1 ELSE 0 END) AS totalAudioSessions,
+    COALESCE(SUM(CASE WHEN call_type='audio' THEN amount ELSE 0 END),0) AS audioRevenue,
+
+    -- Video
+    SUM(CASE WHEN call_type='video' THEN 1 ELSE 0 END) AS totalVideoSessions,
+    COALESCE(SUM(CASE WHEN call_type='video' THEN amount ELSE 0 END),0) AS videoRevenue
+
+  FROM call_history
+  WHERE status IN ('answered', 'hangup', 'disconnect')
+`);
   const totalRevenue = parseFloat(chatStats.chatRevenue) + parseFloat(callStats.callRevenue);
   const adminIncome  = parseFloat(chatStats.chatAdminIncome) + parseFloat(callStats.callAdminIncome);
 
@@ -55,7 +73,7 @@ exports.getStats = async () => {
       COALESCE(SUM(amount), 0) AS todayCallRevenue,
       COALESCE(SUM(amount * admin_commission_percent / 100), 0) AS todayCallAdmin
     FROM call_history
-    WHERE status = 'completed' AND DATE(created_at) = CURDATE()
+     WHERE status IN ('answered', 'hangup', 'disconnect') AND DATE(created_at) = CURDATE()
   `);
 
   return {
@@ -76,6 +94,10 @@ exports.getStats = async () => {
     callAdminIncome:  parseFloat(callStats.callAdminIncome),
     totalCalls:       Number(callStats.totalCalls),
     callMinutes:      Number(callStats.callMinutes),
+    totalAudioSessions: Number(callStats.totalAudioSessions),
+audioRevenue: parseFloat(callStats.audioRevenue),
+totalVideoSessions: Number(callStats.totalVideoSessions),
+videoRevenue: parseFloat(callStats.videoRevenue),
   };
 };
 
@@ -101,7 +123,7 @@ exports.getRevenueChart = async () => {
       COALESCE(SUM(amount), 0) AS callTotal,
       COALESCE(SUM(amount * admin_commission_percent / 100), 0) AS callAdmin
     FROM call_history
-    WHERE status = 'completed' AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+     WHERE status IN ('answered', 'hangup', 'disconnect') AND created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
     GROUP BY year, monthNum, month
     ORDER BY year, monthNum
   `);
@@ -149,7 +171,7 @@ exports.getRecentSessions = async () => {
     FROM call_history ch
     JOIN users u ON u.id = ch.user_id
     JOIN astrologers a ON a.id = ch.agent_id
-    WHERE ch.status = 'completed'
+     WHERE ch.status IN ('answered', 'hangup', 'disconnect')
     ORDER BY ch.created_at DESC LIMIT 5
   `);
 
