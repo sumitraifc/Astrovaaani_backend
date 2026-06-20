@@ -356,6 +356,9 @@ const [[admin]] = await pool.query(`
 
 const [[callBreakdown]] = await pool.query(`
   SELECT
+       COUNT(CASE WHEN call_type='audio' THEN 1 END) AS audioSessions,
+
+COUNT(CASE WHEN call_type='video' THEN 1 END) AS videoSessions,
 
     SUM(CASE WHEN call_type='audio' THEN amount ELSE 0 END) AS audioSpent,
     SUM(CASE WHEN call_type='video' THEN amount ELSE 0 END) AS videoSpent,
@@ -422,6 +425,8 @@ videoAdminIncome: Number(callBreakdown.videoAdminIncome || 0),
 
 audioMinutes: Number(callBreakdown.audioMinutes || 0),
 videoMinutes: Number(callBreakdown.videoMinutes || 0),
+audioSessions: Number(callBreakdown.audioSessions || 0),
+videoSessions: Number(callBreakdown.videoSessions || 0),
 
   };
 };

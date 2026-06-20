@@ -14,7 +14,7 @@ exports.getAll = async (req, res) => {
 exports.create = async (req, res) => {
   try {
     const body = { ...req.body };
-    if (req.file) body.image = `/uploads/${req.file.filename}`;
+    if (req.file) body.image = `${req.file.filename}`;
     if (!body.image) return res.status(400).json({ success: false, message: 'Image is required' });
     if (!body.title) return res.status(400).json({ success: false, message: 'Title is required' });
     const id = await service.create(body);
