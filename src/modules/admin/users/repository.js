@@ -167,24 +167,195 @@ exports.getAll = async ({ search, status, page, limit }) => {
 };
 
 
+// exports.getById = async (id) => {
+//   const [[user]] = await pool.query(`
+//     SELECT u.*, COALESCE(w.balance,0) AS wallet
+//     FROM users u LEFT JOIN wallet w ON w.user_id = u.id
+//     WHERE u.id = ?`, [id]);
+
+//   const [sessions] = await pool.query(`
+//     SELECT cc.id, 'chat' AS type, a.name AS astrologer, cc.duration, cc.amount, cc.status, cc.user_rating, cc.user_review, cc.created_at
+//     FROM chat_conversations cc JOIN astrologers a ON a.id = cc.astrologer_id
+//     WHERE cc.user_id = ? ORDER BY cc.created_at DESC LIMIT 20`, [id]);
+
+//   const [txns] = await pool.query(`
+//     SELECT id, type, amount, balance_before, balance_after, reason, status, created_at
+//     FROM wallet_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`, [id]);
+
+//   return { ...user, sessions, transactions: txns };
+// };
+
 exports.getById = async (id) => {
+
+  // =========================
+  // 1. USER BASIC INFO
+  // =========================
   const [[user]] = await pool.query(`
-    SELECT u.*, COALESCE(w.balance,0) AS wallet
-    FROM users u LEFT JOIN wallet w ON w.user_id = u.id
-    WHERE u.id = ?`, [id]);
+    SELECT 
+      u.*,
+      COALESCE(w.balance,0) AS wallet
+    FROM users u 
+    LEFT JOIN wallet w ON w.user_id = u.id
+    WHERE u.id = ?
+  `, [id]);
 
+  if (!user) return null;
+
+  // =========================
+  // 2. SESSIONS (CHAT + CALL)
+  // =========================
   const [sessions] = await pool.query(`
-    SELECT cc.id, 'chat' AS type, a.name AS astrologer, cc.duration, cc.amount, cc.status, cc.user_rating, cc.user_review, cc.created_at
-    FROM chat_conversations cc JOIN astrologers a ON a.id = cc.astrologer_id
-    WHERE cc.user_id = ? ORDER BY cc.created_at DESC LIMIT 20`, [id]);
+    (
+      SELECT 
+        cc.id,
+        'chat' AS type,
+        a.name AS astrologer,
+        cc.duration,
+        cc.amount,
+        cc.status,
+        cc.user_rating,
+        cc.user_review,
+        cc.created_at
+      FROM chat_conversations cc
+      JOIN astrologers a ON a.id = cc.astrologer_id
+      WHERE cc.user_id = ?
+    )
 
+    UNION ALL
+
+    (
+      SELECT 
+        ch.id,
+        ch.call_type AS type,
+        a.name AS astrologer,
+        ch.duration,
+        ch.amount,
+        ch.status,
+        ch.user_rating,
+        ch.user_review,
+        ch.created_at
+      FROM call_history ch
+      JOIN astrologers a ON a.id = ch.astrologer_id
+      WHERE ch.user_id = ?
+    )
+
+    ORDER BY created_at DESC
+    LIMIT 20
+  `, [id, id]);
+
+  // =========================
+  // 3. WALLET TRANSACTIONS
+  // =========================
   const [txns] = await pool.query(`
-    SELECT id, type, amount, balance_before, balance_after, reason, status, created_at
-    FROM wallet_transactions WHERE user_id = ? ORDER BY created_at DESC LIMIT 20`, [id]);
+    SELECT 
+      id,
+      type,
+      amount,
+      balance_before,
+      balance_after,
+      reason,
+      status,
+      created_at
+    FROM wallet_transactions
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 20
+  `, [id]);
 
-  return { ...user, sessions, transactions: txns };
+  // =========================
+  // 4. SPENDING SUMMARY
+  // =========================
+  const [[spent]] = await pool.query(`
+    SELECT 
+
+      COALESCE((
+        SELECT SUM(amount) 
+        FROM chat_conversations 
+        WHERE user_id = ?
+        AND status IN ('ended','active','blocked')
+      ),0) AS chatSpent,
+
+      COALESCE((
+        SELECT SUM(amount) 
+        FROM call_history 
+        WHERE user_id = ?
+        AND status IN ('answered','hangup','disconnect')
+      ),0) AS callSpent,
+
+      COALESCE((
+        SELECT SUM(amount) 
+        FROM live_gifts 
+        WHERE user_id = ?
+      ),0) AS giftSpent
+
+  `, [id, id, id]);
+
+  // =========================
+  // 5. SESSION COUNTS
+  // =========================
+  const [[counts]] = await pool.query(`
+    SELECT
+
+      (SELECT COUNT(*) FROM chat_conversations WHERE user_id = ?) AS chatSessions,
+
+      (SELECT COUNT(*) FROM call_history WHERE user_id = ?) AS callSessions
+
+  `, [id, id]);
+
+  // =========================
+  // 6. ASTROLOGER REVIEWS
+  // =========================
+  const [reviews] = await pool.query(`
+    SELECT 
+      ar.id,
+      ar.astrologer_id,
+      a.name AS astrologer_name,
+      ar.user_id,
+      ar.booking_type,
+      ar.rating,
+      ar.comment,
+      ar.status,
+      ar.created_at,
+      ar.updated_at
+    FROM astrologer_reviews ar
+    JOIN astrologers a ON a.id = ar.astrologer_id
+    WHERE ar.user_id = ?
+    ORDER BY ar.created_at DESC
+    LIMIT 20
+  `, [id]);
+
+  // =========================
+  // 7. FINAL RESPONSE
+  // =========================
+  return {
+    ...user,
+
+    profile_image: user.profile_image
+      ? `${process.env.BASE_URL}/uploads/${user.profile_image}`
+      : null,
+
+    sessions,
+    transactions: txns,
+    reviews,
+
+    // 💰 SPENDING
+    chatSpent: Number(spent.chatSpent || 0),
+    callSpent: Number(spent.callSpent || 0),
+    giftSpent: Number(spent.giftSpent || 0),
+
+    totalSpent:
+      Number(spent.chatSpent || 0) +
+      Number(spent.callSpent || 0) +
+      Number(spent.giftSpent || 0),
+
+    // 📊 SESSION COUNTS
+    chatSessions: Number(counts.chatSessions || 0),
+    callSessions: Number(counts.callSessions || 0),
+    totalSessions:
+      Number(counts.chatSessions || 0) +
+      Number(counts.callSessions || 0),
+  };
 };
-
 exports.updateStatus = async (id, status) => {
   await pool.query('UPDATE users SET status = ? WHERE id = ?', [status, id]);
 };
