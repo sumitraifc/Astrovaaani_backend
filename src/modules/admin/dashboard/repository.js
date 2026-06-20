@@ -63,16 +63,20 @@ const [[callStats]] = await pool.query(`
     COALESCE(SUM(amount * admin_commission_percent / 100), 0) AS callAdminIncome,
     COUNT(*) AS totalCalls,
 
-    -- 🔥 FIXED: minutes rounding per session
+    -- total minutes (rounded per session)
     SUM(CEIL(duration / 60)) AS callMinutes,
 
-    -- Audio
+    -- AUDIO
     SUM(CASE WHEN call_type='audio' THEN 1 ELSE 0 END) AS totalAudioSessions,
     COALESCE(SUM(CASE WHEN call_type='audio' THEN amount ELSE 0 END),0) AS audioRevenue,
+    COALESCE(SUM(CASE WHEN call_type='audio' THEN amount * admin_commission_percent / 100 ELSE 0 END),0) AS audioAdminIncome,
+    COALESCE(SUM(CASE WHEN call_type='audio' THEN CEIL(duration / 60) ELSE 0 END),0) AS audioMinutes,
 
-    -- Video
+    -- VIDEO
     SUM(CASE WHEN call_type='video' THEN 1 ELSE 0 END) AS totalVideoSessions,
-    COALESCE(SUM(CASE WHEN call_type='video' THEN amount ELSE 0 END),0) AS videoRevenue
+    COALESCE(SUM(CASE WHEN call_type='video' THEN amount ELSE 0 END),0) AS videoRevenue,
+    COALESCE(SUM(CASE WHEN call_type='video' THEN amount * admin_commission_percent / 100 ELSE 0 END),0) AS videoAdminIncome,
+    COALESCE(SUM(CASE WHEN call_type='video' THEN CEIL(duration / 60) ELSE 0 END),0) AS videoMinutes
 
   FROM call_history
   WHERE status IN ('answered', 'hangup', 'disconnect')
@@ -118,6 +122,17 @@ const [[callStats]] = await pool.query(`
 audioRevenue: parseFloat(callStats.audioRevenue),
 totalVideoSessions: Number(callStats.totalVideoSessions),
 videoRevenue: parseFloat(callStats.videoRevenue),
+
+  //  AUDIO
+ 
+ 
+  audioAdminIncome: parseFloat(callStats.audioAdminIncome || 0),
+  audioMinutes: Number(callStats.audioMinutes || 0),
+
+  //  VIDEO
+
+  videoAdminIncome: parseFloat(callStats.videoAdminIncome || 0),
+  videoMinutes: Number(callStats.videoMinutes || 0),
   };
 };
 
