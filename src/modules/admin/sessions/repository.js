@@ -64,7 +64,7 @@ exports.getSessions = async ({ type, search, status, page, limit }) => {
       a.name AS astrologer_name, a.expertise AS astrologer_specialization,
       ch.call_type AS type,
       ch.created_at AS start_time,
-      ch.duration, ch.amount, ch.per_minute_charge AS charge_per_min,
+          CEIL(ch.duration / 60) AS duration, ch.amount, ch.per_minute_charge AS charge_per_min,
       ROUND(ch.amount * ch.admin_commission_percent / 100, 2) AS platform_fee,
       ROUND(ch.amount * (100 - ch.admin_commission_percent) / 100, 2) AS astrologer_earning,
       ch.status, ch.disconnect_reason,
