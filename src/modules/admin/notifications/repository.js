@@ -100,33 +100,20 @@ exports.send = async ({ title, message, image, target, recipient_ids, sent_by })
     addTokens(rows);
   }
 
-  // SPECIFIC USERS / ASTROLOGERS (FIXED)
+  // SPECIFIC USERS / ASTROLOGERS
   else if ((target === 'specific_user' || target === 'specific_astrologer') && recipient_ids?.length) {
-    const grouped = {
-      user: [],
-      astrologer: []
-    };
-
-    // group ids
+    const userIds = [];
+    const astroIds = [];
     for (const rec of recipient_ids) {
-      if (rec.type === 'user') grouped.user.push(rec.id);
-      else if (rec.type === 'astrologer') grouped.astrologer.push(rec.id);
+      if (rec.type === 'user') userIds.push(rec.id);
+      else if (rec.type === 'astrologer') astroIds.push(rec.id);
     }
-
-    // fetch in batch (OPTIMIZED)
-    if (grouped.user.length) {
-      const [rows] = await pool.query(
-        `SELECT fcm_token FROM users WHERE id IN (?)`,
-        [grouped.user]
-      );
+    if (userIds.length) {
+      const [rows] = await pool.query('SELECT fcm_token FROM users WHERE id IN (?)', [userIds]);
       addTokens(rows);
     }
-
-    if (grouped.astrologer.length) {
-      const [rows] = await pool.query(
-        `SELECT fcm_token FROM astrologers WHERE id IN (?)`,
-        [grouped.astrologer]
-      );
+    if (astroIds.length) {
+      const [rows] = await pool.query('SELECT fcm_token FROM astrologers WHERE id IN (?)', [astroIds]);
       addTokens(rows);
     }
   }
@@ -153,18 +140,9 @@ exports.send = async ({ title, message, image, target, recipient_ids, sent_by })
 
   // SAVE IN DB
   await pool.query(
-    `INSERT INTO notifications 
-     (title, message, image, target_type, sent_count, sent_by_admin, type)
+    `INSERT INTO notifications (title, message, image, target_type, sent_count, sent_by_admin, type)
      VALUES (?,?,?,?,?,?,?)`,
-    [
-      title,
-      message,
-      image || null,
-      target,
-      sentCount,
-      sent_by,
-      'system'
-    ]
+    [title, message, image || null, target, sentCount, sent_by, 'push']
   );
 
   return sentCount;
