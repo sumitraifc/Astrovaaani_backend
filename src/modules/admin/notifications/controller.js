@@ -10,7 +10,7 @@ exports.uploadImage = async (req, res) => {
 
 exports.send = async (req, res) => {
   try {
-    const { title, message, image, target, recipient_ids } = req.body;
+    const { title, message, image, target, type, recipient_ids } = req.body;
     if (!title || !message) return res.status(400).json({ success: false, message: 'title and message required' });
 
     const validTargets = ['all', 'users', 'astrologers', 'specific_user', 'specific_astrologer'];
@@ -19,8 +19,11 @@ exports.send = async (req, res) => {
     if ((target === 'specific_user' || target === 'specific_astrologer') && !recipient_ids?.length)
       return res.status(400).json({ success: false, message: 'recipient_ids required for specific target' });
 
+    const validTypes = ['offer', 'message', 'consultation', 'system', 'push'];
+    const notifType  = validTypes.includes(type) ? type : 'push';
+
     const sent_by = req.admin?.id || req.user?.id;
-    const sentCount = await service.send({ title, message, image, target, recipient_ids, sent_by });
+    const sentCount = await service.send({ title, message, image, target, type: notifType, recipient_ids, sent_by });
     res.json({ success: true, message: `Notification sent to ${sentCount} device(s)`, sentCount });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
