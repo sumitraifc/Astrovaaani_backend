@@ -16,7 +16,7 @@ exports.getList = async ({ search, status, page, limit }) => {
   if (status && status !== 'all' && validStatuses.includes(status)) {
     if (status === 'partial') {
       // partial_rejected — koi step reject hua hai, astrologer ne abhi resubmit nahi kiya
-      where += " AND a.approval_status = 'partial_rejected' AND a.registration_completed = 0";
+      where += " AND a.approval_status = 'partial_rejected' AND a.registration_completed = 1";
     } else if (status === 'resubmitted') {
       // Astrologer ne sabhi steps dobara fill kiye (registration_completed=1) but admin ne abhi approve nahi kiya
       where += " AND a.registration_completed = 1 AND a.approval_status = 'pending'";
