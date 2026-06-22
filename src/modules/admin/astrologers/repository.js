@@ -160,40 +160,121 @@ const [withdrawals] = await pool.query(`
   WHERE astrologer_id = ?
   ORDER BY requested_at DESC
 `, [id]);
-const [[stats]] = await pool.query(`
-  SELECT
 
-    -- CHAT
-    COALESCE(SUM(cc.duration),0) AS chatMinutes,
-    COALESCE(SUM(cc.amount),0) AS chatRevenue,
-    COALESCE(SUM(cc.amount * (100 - cc.admin_commission) / 100),0) AS chatAstrologerEarning,
-    COALESCE(SUM(cc.amount * cc.admin_commission / 100),0) AS chatAdminEarning,
+// const [[stats]] = await pool.query(`
+//   SELECT
 
-    -- AUDIO
-    COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.duration ELSE 0 END),0) AS audioMinutes,
-    COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount ELSE 0 END),0) AS audioRevenue,
-    COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount * (100 - ch.admin_commission_percent) / 100 ELSE 0 END),0) AS audioAstroEarning,
-    COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount * ch.admin_commission_percent / 100 ELSE 0 END),0) AS audioAdminEarning,
+//     -- CHAT
+//     COALESCE(SUM(cc.duration),0) AS chatMinutes,
+//     COALESCE(SUM(cc.amount),0) AS chatRevenue,
+//     COALESCE(SUM(cc.amount * (100 - cc.admin_commission) / 100),0) AS chatAstrologerEarning,
+//     COALESCE(SUM(cc.amount * cc.admin_commission / 100),0) AS chatAdminEarning,
 
-    -- VIDEO
-    COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.duration ELSE 0 END),0) AS videoMinutes,
-    COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount ELSE 0 END),0) AS videoRevenue,
-    COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount * (100 - ch.admin_commission_percent) / 100 ELSE 0 END),0) AS videoAstroEarning,
-    COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount * ch.admin_commission_percent / 100 ELSE 0 END),0) AS videoAdminEarning
+//     -- AUDIO
+//     COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.duration ELSE 0 END),0) AS audioMinutes,
+//     COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount ELSE 0 END),0) AS audioRevenue,
+//     COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount * (100 - ch.admin_commission_percent) / 100 ELSE 0 END),0) AS audioAstroEarning,
+//     COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount * ch.admin_commission_percent / 100 ELSE 0 END),0) AS audioAdminEarning,
 
-  FROM astrologers a
+//     -- VIDEO
+//     COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.duration ELSE 0 END),0) AS videoMinutes,
+//     COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount ELSE 0 END),0) AS videoRevenue,
+//     COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount * (100 - ch.admin_commission_percent) / 100 ELSE 0 END),0) AS videoAstroEarning,
+//     COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount * ch.admin_commission_percent / 100 ELSE 0 END),0) AS videoAdminEarning
 
-  LEFT JOIN chat_conversations cc 
-    ON cc.astrologer_id = a.id 
-    AND cc.status IN ('ended','active','blocked')
+//   FROM astrologers a
 
-  LEFT JOIN call_history ch 
-    ON ch.agent_id = a.id 
-    AND ch.status IN ('answered','hangup','disconnect')
+//   LEFT JOIN chat_conversations cc 
+//     ON cc.astrologer_id = a.id 
+//     AND cc.status IN ('ended','active','blocked')
 
-  WHERE a.id = ?
-`, [id]);
- return {
+//   LEFT JOIN call_history ch 
+//     ON ch.agent_id = a.id 
+//     AND ch.status IN ('answered','hangup','disconnect')
+
+//   WHERE a.id = ?
+// `, [id]);
+ const [[stats]] = await pool.query(`
+SELECT
+
+-- ================= CHAT =================
+COALESCE((
+  SELECT SUM(duration)
+  FROM chat_conversations
+  WHERE astrologer_id = ?
+  AND status IN ('ended','active','blocked')
+),0) AS chatMinutes,
+
+COALESCE((
+  SELECT SUM(amount)
+  FROM chat_conversations
+  WHERE astrologer_id = ?
+  AND status IN ('ended','active','blocked')
+),0) AS chatRevenue,
+
+COALESCE((
+  SELECT SUM(amount * admin_commission / 100)
+  FROM chat_conversations
+  WHERE astrologer_id = ?
+  AND status IN ('ended','active','blocked')
+),0) AS chatAdminEarning,
+
+-- ================= AUDIO =================
+COALESCE((
+  SELECT SUM(CEIL(duration / 60))
+  FROM call_history
+  WHERE agent_id = ?
+  AND call_type = 'audio'
+  AND status IN ('answered','hangup','disconnect')
+),0) AS audioMinutes,
+
+COALESCE((
+  SELECT SUM(amount)
+  FROM call_history
+  WHERE agent_id = ?
+  AND call_type = 'audio'
+  AND status IN ('answered','hangup','disconnect')
+),0) AS audioRevenue,
+
+COALESCE((
+  SELECT SUM(amount * admin_commission_percent / 100)
+  FROM call_history
+  WHERE agent_id = ?
+  AND call_type = 'audio'
+  AND status IN ('answered','hangup','disconnect')
+),0) AS audioAdminEarning,
+
+-- ================= VIDEO =================
+COALESCE((
+  SELECT SUM(CEIL(duration / 60))
+  FROM call_history
+  WHERE agent_id = ?
+  AND call_type = 'video'
+  AND status IN ('answered','hangup','disconnect')
+),0) AS videoMinutes,
+
+COALESCE((
+  SELECT SUM(amount)
+  FROM call_history
+  WHERE agent_id = ?
+  AND call_type = 'video'
+  AND status IN ('answered','hangup','disconnect')
+),0) AS videoRevenue,
+
+COALESCE((
+  SELECT SUM(amount * admin_commission_percent / 100)
+  FROM call_history
+  WHERE agent_id = ?
+  AND call_type = 'video'
+  AND status IN ('answered','hangup','disconnect')
+),0) AS videoAdminEarning
+
+`, [
+  id, id, id,
+  id, id, id,
+  id, id, id
+]);
+return {
   ...astro,
   sessions,
   transactions: txns,
