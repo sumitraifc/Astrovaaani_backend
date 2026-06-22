@@ -163,7 +163,7 @@ exports.send = async ({ title, message, image, target, recipient_ids, sent_by })
       target,
       sentCount,
       sent_by,
-      'push'
+      'system'
     ]
   );
 

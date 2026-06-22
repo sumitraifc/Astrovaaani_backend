@@ -47,6 +47,44 @@ exports.getList = async ({ search, status, page, limit }) => {
   return { total, data: rows };
 };
 
+// exports.getById = async (id) => {
+//   const [[astro]] = await pool.query(`
+//     SELECT a.*,
+//       COALESCE(w.balance, 0) AS wallet_balance
+//     FROM astrologers a
+//     LEFT JOIN wallet w ON w.astrologer_id = a.id
+//     WHERE a.id = ?
+//   `, [id]);
+
+//   if (!astro) return null;
+
+//   const [sessions] = await pool.query(`
+//     SELECT cc.id, 'chat' AS type, u.name AS user_name,
+//       cc.duration, cc.amount, cc.status, cc.user_rating, cc.created_at
+//     FROM chat_conversations cc
+//     JOIN users u ON u.id = cc.user_id
+//     WHERE cc.astrologer_id = ?
+//     ORDER BY cc.created_at DESC LIMIT 20
+//   `, [id]);
+
+//   const [txns] = await pool.query(`
+//     SELECT id, type, amount, balance_before, balance_after, reason, status, created_at
+//     FROM wallet_transactions WHERE astrologer_id = ?
+//     ORDER BY created_at DESC LIMIT 20
+//   `, [id]);
+
+//   const [reviews] = await pool.query(`
+//     SELECT ar.id, ar.rating, ar.comment, ar.booking_type, ar.status,
+//       u.name AS user_name, ar.created_at
+//     FROM astrologer_reviews ar
+//     JOIN users u ON u.id = ar.user_id
+//     WHERE ar.astrologer_id = ?
+//     ORDER BY ar.created_at DESC LIMIT 10
+//   `, [id]);
+
+//   return { ...astro, sessions, transactions: txns, reviews };
+// };
+
 exports.getById = async (id) => {
   const [[astro]] = await pool.query(`
     SELECT a.*,
@@ -58,31 +96,62 @@ exports.getById = async (id) => {
 
   if (!astro) return null;
 
+  // Document URLs
+  const fileFields = [
+    "profile_image",
+    "education_cert",
+    "astro_cert",
+    "id_proof",
+    "address_proof",
+  ];
+
+  fileFields.forEach((field) => {
+    if (astro[field]) {
+      astro[field] = `${process.env.BASE_URL}/uploads/${astro[field]}`;
+    }
+  });
+
   const [sessions] = await pool.query(`
     SELECT cc.id, 'chat' AS type, u.name AS user_name,
       cc.duration, cc.amount, cc.status, cc.user_rating, cc.created_at
     FROM chat_conversations cc
     JOIN users u ON u.id = cc.user_id
     WHERE cc.astrologer_id = ?
-    ORDER BY cc.created_at DESC LIMIT 20
+    ORDER BY cc.created_at DESC
+    LIMIT 20
   `, [id]);
 
   const [txns] = await pool.query(`
-    SELECT id, type, amount, balance_before, balance_after, reason, status, created_at
-    FROM wallet_transactions WHERE astrologer_id = ?
-    ORDER BY created_at DESC LIMIT 20
+    SELECT id, type, amount, balance_before, balance_after,
+      reason, status, created_at
+    FROM wallet_transactions
+    WHERE astrologer_id = ?
+    ORDER BY created_at DESC
+    LIMIT 20
   `, [id]);
 
   const [reviews] = await pool.query(`
-    SELECT ar.id, ar.rating, ar.comment, ar.booking_type, ar.status,
-      u.name AS user_name, ar.created_at
+    SELECT
+      ar.id,
+      ar.rating,
+      ar.comment,
+      ar.booking_type,
+      ar.status,
+      u.name AS user_name,
+      ar.created_at
     FROM astrologer_reviews ar
     JOIN users u ON u.id = ar.user_id
     WHERE ar.astrologer_id = ?
-    ORDER BY ar.created_at DESC LIMIT 10
+    ORDER BY ar.created_at DESC
+    LIMIT 10
   `, [id]);
 
-  return { ...astro, sessions, transactions: txns, reviews };
+  return {
+    ...astro,
+    sessions,
+    transactions: txns,
+    reviews,
+  };
 };
 
 exports.updateStepStatus = async (id, step, status, remark, adminId) => {
