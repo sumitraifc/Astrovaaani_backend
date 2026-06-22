@@ -330,33 +330,40 @@ exports.updateStepStatus = async (id, step, status, remark, adminId) => {
   );
 
   const [[astro]] = await pool.query(
-    'SELECT step1_status, step2_status, step3_status, step4_status, step5_status, registration_step, registration_completed FROM astrologers WHERE id = ?',
+    'SELECT step1_status, step2_status, step3_status, step4_status, step5_status FROM astrologers WHERE id = ?',
     [id]
   );
 
   const allApproved = [1,2,3,4,5].every((s) => astro[`step${s}_status`] === 'approved');
   const anyRejected = [1,2,3,4,5].some((s)  => astro[`step${s}_status`] === 'rejected');
 
-  let approvalStatus   = 'pending';
-  let registrationStep = astro.registration_step;
+  let approvalStatus = 'pending';
 
   if (allApproved) {
-    approvalStatus   = 'approved';
-    registrationStep = 5;
-  } else if (anyRejected) {
-    approvalStatus = 'partial_rejected';
-    // Astrologer ko rejected step par wapas bhejo
-    if (status === 'rejected') registrationStep = step;
-  } else {
-    // Yeh step approved, astrologer next step par ja sakta hai
-    approvalStatus   = 'resume';
-    registrationStep = Math.max(astro.registration_step, step + 1);
+    // Sab steps approve — fully approved, next_review_date & validity_date bhi set karo
+    const now           = new Date();
+    const nextReview    = new Date(now); nextReview.setMonth(nextReview.getMonth() + 6);
+    const validity      = new Date(now); validity.setFullYear(validity.getFullYear() + 1);
+    await pool.query(
+      `UPDATE astrologers
+       SET approval_status = 'approved', registration_completed = 1,
+           approved_at = ?, approved_by = ?,
+           next_review_date = ?, validity_date = ?
+       WHERE id = ?`,
+      [now, adminId, nextReview, validity, id]
+    );
+    return 'approved';
   }
 
+  if (anyRejected) {
+    approvalStatus = 'partial_rejected';
+  }
+  // else — kuch steps pending hain, approval_status = 'pending' rehta hai
+
+  // Sirf approval_status update karo — registration_step aur registration_completed mat chheḍo
   await pool.query(
-    `UPDATE astrologers SET approval_status = ?, registration_step = ?, registration_completed = 0,
-      approved_at = ?, approved_by = ? WHERE id = ?`,
-    [approvalStatus, registrationStep, allApproved ? new Date() : null, allApproved ? adminId : null, id]
+    `UPDATE astrologers SET approval_status = ? WHERE id = ?`,
+    [approvalStatus, id]
   );
 
   return approvalStatus;
