@@ -145,13 +145,93 @@ exports.getById = async (id) => {
     ORDER BY ar.created_at DESC
     LIMIT 10
   `, [id]);
+const [withdrawals] = await pool.query(`
+  SELECT 
+    id,
+    amount,
+    method,
+    utr_number,
+    status,
+    rejection_note,
+    requested_at,
+    processed_at,
+    processed_by
+  FROM astrologer_withdrawals
+  WHERE astrologer_id = ?
+  ORDER BY requested_at DESC
+`, [id]);
+const [[stats]] = await pool.query(`
+  SELECT
 
-  return {
-    ...astro,
-    sessions,
-    transactions: txns,
-    reviews,
-  };
+    -- CHAT
+    COALESCE(SUM(cc.duration),0) AS chatMinutes,
+    COALESCE(SUM(cc.amount),0) AS chatRevenue,
+    COALESCE(SUM(cc.amount * (100 - cc.admin_commission) / 100),0) AS chatAstrologerEarning,
+    COALESCE(SUM(cc.amount * cc.admin_commission / 100),0) AS chatAdminEarning,
+
+    -- AUDIO
+    COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.duration ELSE 0 END),0) AS audioMinutes,
+    COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount ELSE 0 END),0) AS audioRevenue,
+    COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount * (100 - ch.admin_commission_percent) / 100 ELSE 0 END),0) AS audioAstroEarning,
+    COALESCE(SUM(CASE WHEN ch.call_type='audio' THEN ch.amount * ch.admin_commission_percent / 100 ELSE 0 END),0) AS audioAdminEarning,
+
+    -- VIDEO
+    COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.duration ELSE 0 END),0) AS videoMinutes,
+    COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount ELSE 0 END),0) AS videoRevenue,
+    COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount * (100 - ch.admin_commission_percent) / 100 ELSE 0 END),0) AS videoAstroEarning,
+    COALESCE(SUM(CASE WHEN ch.call_type='video' THEN ch.amount * ch.admin_commission_percent / 100 ELSE 0 END),0) AS videoAdminEarning
+
+  FROM astrologers a
+
+  LEFT JOIN chat_conversations cc 
+    ON cc.astrologer_id = a.id 
+    AND cc.status IN ('ended','active','blocked')
+
+  LEFT JOIN call_history ch 
+    ON ch.agent_id = a.id 
+    AND ch.status IN ('answered','hangup','disconnect')
+
+  WHERE a.id = ?
+`, [id]);
+ return {
+  ...astro,
+  sessions,
+  transactions: txns,
+  reviews,
+  withdrawals,
+
+  // =========================
+  // CHAT
+  // =========================
+  chatMinutes: Number(stats.chatMinutes || 0),
+  chatRevenue: Number(stats.chatRevenue || 0),
+  chatAstrologerEarning: Number(stats.chatAstrologerEarning || 0),
+  chatAdminEarning: Number(stats.chatAdminEarning || 0),
+
+  // =========================
+  // AUDIO
+  // =========================
+  audioMinutes: Number(stats.audioMinutes || 0),
+  audioRevenue: Number(stats.audioRevenue || 0),
+  audioAstrologerEarning: Number(stats.audioAstroEarning || 0),
+  audioAdminEarning: Number(stats.audioAdminEarning || 0),
+
+  // =========================
+  // VIDEO
+  // =========================
+  videoMinutes: Number(stats.videoMinutes || 0),
+  videoRevenue: Number(stats.videoRevenue || 0),
+  videoAstrologerEarning: Number(stats.videoAstroEarning || 0),
+  videoAdminEarning: Number(stats.videoAdminEarning || 0),
+
+  // =========================
+  // TOTAL ADMIN
+  // =========================
+  totalAdminEarning:
+    Number(stats.chatAdminEarning || 0) +
+    Number(stats.audioAdminEarning || 0) +
+    Number(stats.videoAdminEarning || 0),
+};
 };
 
 exports.updateStepStatus = async (id, step, status, remark, adminId) => {
