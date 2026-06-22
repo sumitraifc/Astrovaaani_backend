@@ -101,7 +101,7 @@ exports.getHistory = async ({ page, limit }) => {
       n.id, n.title, n.message, n.image, n.target_type, n.sent_count,
       n.type, n.status, n.created_at,
       n.user_id, n.astrologer_id,
-      u.name  AS user_name,  u.phone AS user_phone,
+      u.name  AS user_name,  u.mobile AS user_phone,
       a.name  AS astrologer_name, a.phone AS astrologer_phone,
       au.name AS sent_by_name
     FROM notifications n
