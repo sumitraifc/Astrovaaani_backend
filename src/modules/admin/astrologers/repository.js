@@ -12,13 +12,17 @@ exports.getList = async ({ search, status, page, limit }) => {
   }
 
   // status maps to approval_status
-  const validStatuses = ['pending', 'approved', 'rejected', 'partial'];
+  const validStatuses = ['pending', 'approved', 'rejected', 'partial', 'resubmitted', 'resume'];
   if (status && status !== 'all' && validStatuses.includes(status)) {
     if (status === 'partial') {
-      where += ` AND a.approval_status NOT IN ('approved','rejected') AND (
-        a.step1_status IS NOT NULL OR a.step2_status IS NOT NULL OR
-        a.step3_status IS NOT NULL OR a.step4_status IS NOT NULL OR a.step5_status IS NOT NULL
-      )`;
+      // partial_rejected — koi step reject hua hai, astrologer ne abhi resubmit nahi kiya
+      where += " AND a.approval_status = 'partial_rejected' AND a.registration_completed = 0";
+    } else if (status === 'resubmitted') {
+      // Astrologer ne sabhi steps dobara fill kiye (registration_completed=1) but admin ne abhi approve nahi kiya
+      where += " AND a.registration_completed = 1 AND a.approval_status = 'pending'";
+    } else if (status === 'resume') {
+      // Astrologer step 1-4 fill kar raha hai (incomplete registration, approval_status='resume')
+      where += " AND a.approval_status = 'resume' AND a.registration_completed = 0";
     } else {
       where += ' AND a.approval_status = ?';
       params.push(status);
@@ -35,9 +39,10 @@ exports.getList = async ({ search, status, page, limit }) => {
       a.total_earnings, a.wallet_balance, a.commission_percent, a.education,
       a.languages, a.expertise, a.chat_charge, a.audio_charge, a.video_charge,
       a.is_online, a.status, a.approval_status, a.live_status,
+      a.registration_step, a.registration_completed,
       a.step1_status, a.step2_status, a.step3_status, a.step4_status, a.step5_status,
       a.step1_remark, a.step2_remark, a.step3_remark, a.step4_remark, a.step5_remark,
-      a.rejection_reason, a.approved_at, a.created_at
+      a.rejection_reason, a.approved_at, a.created_at, a.draft_saved_at
     FROM astrologers a
     ${where}
     ORDER BY a.id DESC
@@ -319,15 +324,13 @@ exports.updateStepStatus = async (id, step, status, remark, adminId) => {
   const stepCol   = `step${step}_status`;
   const remarkCol = `step${step}_remark`;
 
-  // Update step status + remark
   await pool.query(
     `UPDATE astrologers SET ${stepCol} = ?, ${remarkCol} = ? WHERE id = ?`,
     [status, remark || null, id]
   );
 
-  // Re-fetch all step statuses
   const [[astro]] = await pool.query(
-    'SELECT step1_status, step2_status, step3_status, step4_status, step5_status, registration_step FROM astrologers WHERE id = ?',
+    'SELECT step1_status, step2_status, step3_status, step4_status, step5_status, registration_step, registration_completed FROM astrologers WHERE id = ?',
     [id]
   );
 
@@ -342,16 +345,17 @@ exports.updateStepStatus = async (id, step, status, remark, adminId) => {
     registrationStep = 5;
   } else if (anyRejected) {
     approvalStatus = 'partial_rejected';
-    // Send astrologer back to the rejected step so they can resubmit
+    // Astrologer ko rejected step par wapas bhejo
     if (status === 'rejected') registrationStep = step;
-  } else if (status === 'approved') {
-    // This step approved, let astrologer move to next step
+  } else {
+    // Yeh step approved, astrologer next step par ja sakta hai
     approvalStatus   = 'resume';
-    registrationStep = step + 1;
+    registrationStep = Math.max(astro.registration_step, step + 1);
   }
 
   await pool.query(
-    `UPDATE astrologers SET approval_status = ?, registration_step = ?, approved_at = ?, approved_by = ? WHERE id = ?`,
+    `UPDATE astrologers SET approval_status = ?, registration_step = ?, registration_completed = 0,
+      approved_at = ?, approved_by = ? WHERE id = ?`,
     [approvalStatus, registrationStep, allApproved ? new Date() : null, allApproved ? adminId : null, id]
   );
 
