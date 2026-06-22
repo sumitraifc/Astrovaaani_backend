@@ -276,9 +276,14 @@ await repo.update(id, {
     (s) => finalAstro[`step${s}_status`] === "rejected"
   );
 
+  // const allStepsPending = [1,2,3,4,5].every(
+  //   (s) => finalAstro[`step${s}_status`] === "pending"
+  // );
   const allStepsPending = [1,2,3,4,5].every(
-    (s) => finalAstro[`step${s}_status`] === "pending"
-  );
+  (s) =>
+    finalAstro[`step${s}_status`] === "pending" ||
+    finalAstro[`step${s}_status`] === "approved"
+);
 
   return {
     success: true,
