@@ -13,15 +13,20 @@ exports.getAll = async () => {
 };
 
 exports.upsert = async (settings) => {
+  const TITLES = {
+    privacy_policy:   'Privacy Policy',
+    terms_conditions: 'Terms & Conditions',
+    maintenance:      'Maintenance Mode',
+  };
   for (const [type, value] of Object.entries(settings)) {
     const content = typeof value === 'object' ? String(value.content ?? '') : String(value);
     const target  = typeof value === 'object' && value.target ? value.target : 'both';
-    const status  = typeof value === 'object' && value.status  ? value.status  : 'active';
+    const status  = typeof value === 'object' && value.status ? value.status : 'active';
+    const title   = TITLES[type] || type;
     await pool.query(
-      `INSERT INTO app_contents (type, content, target, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, NOW(), NOW())
-       ON DUPLICATE KEY UPDATE content = VALUES(content), target = VALUES(target), status = VALUES(status), updated_at = NOW()`,
-      [type, content, target, status]
+      `UPDATE app_contents SET content = ?, target = ?, status = ?, title = ?, updated_at = NOW()
+       WHERE type = ? AND (meta_key IS NULL OR meta_key = '')`,
+      [content, target, status, title, type]
     );
   }
 };
