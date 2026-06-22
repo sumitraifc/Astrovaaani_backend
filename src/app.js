@@ -126,6 +126,11 @@ app.use("/api/astrologer/home/", require("./modules/astrosubmodule/astrologerhom
 
 app.use("/api/astrologer/support-legal", require("./modules/astrosubmodule/astrosupportandleagl/routes"));
 
+app.use(
+    "/api/referral",
+    require("./modules/referral/routes")
+);
+
 // ─── Admin Routes ───────────────────────────────────────────────────────────
 app.use("/api/admin/auth",          require("./modules/admin/auth/routes"));
 app.use("/api/admin/dashboard",     require("./modules/admin/dashboard/routes"));
