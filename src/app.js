@@ -86,8 +86,13 @@ app.use("/uploads", express.static("uploads"));
  * =========================
  */
 app.use("/api/users", require("./modules/user/routes"));
+
 app.use("/api/app-config", require("./modules/appConfig/routes"));
+
 app.use("/api/horoscope",require("./modules/horoscope/routes"));
+
+app.use("/api/bank-details",require("./modules/bankifsc/routes"));
+
 
 app.use("/api/panchang",require("./modules/Panchang/routes"));
 
