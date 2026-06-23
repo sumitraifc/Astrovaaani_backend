@@ -335,7 +335,7 @@ exports.updateStepStatus = async (id, step, status, remark, adminId) => {
   );
 
   const [[astro]] = await pool.query(
-    'SELECT step1_status, step2_status, step3_status, step4_status, step5_status FROM astrologers WHERE id = ?',
+    'SELECT step1_status, step2_status, step3_status, step4_status, step5_status, referred_by FROM astrologers WHERE id = ?',
     [id]
   );
 
@@ -345,27 +345,79 @@ exports.updateStepStatus = async (id, step, status, remark, adminId) => {
   let approvalStatus = 'pending';
 
   if (allApproved) {
-    // Sab steps approve — fully approved, next_review_date & validity_date bhi set karo
-    const now           = new Date();
-    const nextReview    = new Date(now); nextReview.setMonth(nextReview.getMonth() + 6);
-    const validity      = new Date(now); validity.setFullYear(validity.getFullYear() + 1);
+    const now        = new Date();
+    const nextReview = new Date(now); nextReview.setMonth(nextReview.getMonth() + 6);
+    const validity   = new Date(now); validity.setFullYear(validity.getFullYear() + 1);
+
+    // Unique referral code generate karo
+    let referralCode;
+    let isUnique = false;
+    while (!isUnique) {
+      referralCode = 'ASTRO' + Math.random().toString(36).substring(2, 7).toUpperCase();
+      const [[exists]] = await pool.query(
+        'SELECT id FROM astrologers WHERE referral_code = ?', [referralCode]
+      );
+      if (!exists) isUnique = true;
+    }
+
     await pool.query(
       `UPDATE astrologers
        SET approval_status = 'approved', registration_completed = 1,
            approved_at = ?, approved_by = ?,
-           next_review_date = ?, validity_date = ?
+           next_review_date = ?, validity_date = ?,
+           referral_code = ?
        WHERE id = ?`,
-      [now, adminId, nextReview, validity, id]
+      [now, adminId, nextReview, validity, referralCode, id]
     );
+
+    // ── Referral Bonus Flow ──────────────────────────────
+    if (astro.referred_by) {
+      // referral_settings se bonus amount lo
+      const [[setting]] = await pool.query(
+        'SELECT referral_bonus FROM referral_settings ORDER BY id DESC LIMIT 1'
+      );
+      const bonus = parseFloat(setting?.referral_bonus || 0);
+
+      if (bonus > 0) {
+        // Referrer ka wallet credit karo
+        const [[refWallet]] = await pool.query(
+          'SELECT balance FROM wallet WHERE astrologer_id = ?', [astro.referred_by]
+        );
+        const before = parseFloat(refWallet?.balance || 0);
+        const after  = before + bonus;
+
+        // wallet balance update
+        await pool.query(
+          'INSERT INTO wallet (astrologer_id, balance) VALUES (?,?) ON DUPLICATE KEY UPDATE balance = ?',
+          [astro.referred_by, after, after]
+        );
+
+        // wallet transaction record
+        await pool.query(
+          `INSERT INTO wallet_transactions
+            (astrologer_id, type, amount, balance_before, balance_after, reason, status)
+           VALUES (?, 'credit', ?, ?, ?, ?, 'completed')`,
+          [astro.referred_by, bonus, before, after, `Referral bonus for approving astrologer #${id}`]
+        );
+
+        // Referrer ke stats update karo
+        await pool.query(
+          `UPDATE astrologers
+           SET referral_bonus_earned = referral_bonus_earned + ?,
+               total_referrals       = total_referrals + 1,
+               active_referrals      = active_referrals + 1
+           WHERE id = ?`,
+          [bonus, astro.referred_by]
+        );
+      }
+    }
+    // ── End Referral Flow ────────────────────────────────
+
     return 'approved';
   }
 
-  if (anyRejected) {
-    approvalStatus = 'partial_rejected';
-  }
-  // else — kuch steps pending hain, approval_status = 'pending' rehta hai
+  if (anyRejected) approvalStatus = 'partial_rejected';
 
-  // Sirf approval_status update karo — registration_step aur registration_completed mat chheḍo
   await pool.query(
     `UPDATE astrologers SET approval_status = ? WHERE id = ?`,
     [approvalStatus, id]
