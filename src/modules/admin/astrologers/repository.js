@@ -38,7 +38,12 @@ exports.getList = async ({ search, status, page, limit }) => {
       a.profile_image, a.experience, a.rating, a.total_reviews, a.total_sessions,
       a.total_earnings, a.wallet_balance, a.commission_percent, a.education,
       a.languages, a.expertise, a.chat_charge, a.audio_charge, a.video_charge,
-      a.is_online, a.status, a.approval_status, a.live_status,
+      a.is_online, a.status, a.approval_status,
+        CASE
+      WHEN a.is_online = 1 THEN 'online'
+      WHEN a.is_online = 2 THEN 'busy'
+      ELSE 'offline'
+    END AS live_status,
       a.registration_step, a.registration_completed,
       a.step1_status, a.step2_status, a.step3_status, a.step4_status, a.step5_status,
       a.step1_remark, a.step2_remark, a.step3_remark, a.step4_remark, a.step5_remark,
