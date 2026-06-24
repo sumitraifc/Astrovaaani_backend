@@ -15,7 +15,7 @@ exports.getStats = async (astrologerId) => {
 };
 
 exports.getHistory = async (astrologerId) => {
-
+console.log("get history astrologerId:", astrologerId);
     const [rows] = await db.query(`
         SELECT
             a.id,
