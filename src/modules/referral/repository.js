@@ -32,5 +32,6 @@ console.log("get history astrologerId:", astrologerId);
         ORDER BY h.id DESC
     `,[astrologerId]);
 
+ console.log("histroy rows:", rows);
     return rows;
 };
