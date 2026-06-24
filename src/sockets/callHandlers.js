@@ -5,6 +5,7 @@ const { sendNotification } = require("../config/notification");
 const { settleConsultationCharge } = require("../utils/settlement");
 
 async function getFcmTokenByType(type, id) {
+  console.log("[DEBUG] getFcmTokenByType", { type, id });
   const table = type === "astrologer" ? "astrologers" : "users";
   const [rows] = await db.query(
     `SELECT fcm_token FROM ${table} WHERE id = ? LIMIT 1`,
@@ -14,6 +15,7 @@ async function getFcmTokenByType(type, id) {
 }
 
 async function notifyPush({ targetType, targetId, title, body, data = {}, type = "notification" }) {
+  console.log("[DEBUG] notifyPush", { targetType, targetId, title, body, data, type });
   const token = await getFcmTokenByType(targetType, targetId);
   if (!token) {
     console.log(`[CALL FCM] No token for ${targetType} ${targetId}`);
@@ -32,7 +34,7 @@ async function notifyPush({ targetType, targetId, title, body, data = {}, type =
 
 /**
  * connectedUsers — socket mapping
- * Format: { userId: socketId, astrologerId: socketId }
+ * Format: socket.io rooms: user:<id>, astrologer:<id>
  * NOTE: Production mein Redis use karo (multi-instance ke liye)
  *
  * is_online states:
@@ -40,7 +42,24 @@ async function notifyPush({ targetType, targetId, title, body, data = {}, type =
  *   1 = online (available)
  *   2 = busy   (in call / ringing)
  */
-const connectedUsers = {};
+
+function getUserRoom(userId) {
+  const room = `user:${userId}`;
+  console.log("[DEBUG] getUserRoom", { userId, room });
+  return room;
+}
+
+function getAstrologerRoom(astrologerId) {
+  const room = `astrologer:${astrologerId}`;
+  console.log("[DEBUG] getAstrologerRoom", { astrologerId, room });
+  return room;
+}
+
+function isRoomActive(io, room) {
+  const active = !!io.sockets.adapter.rooms.get(room);
+  console.log("[DEBUG] isRoomActive", { room, active });
+  return active;
+}
 
 /**
  * activeCallTimeouts — ringing timeout tracking
@@ -55,6 +74,7 @@ const activeCallTimeouts = {};
 const activeCallBillingTimers = {};
 
 function clearCallBillingTimer(callId) {
+  console.log("[DEBUG] clearCallBillingTimer", { callId });
   if (activeCallBillingTimers[callId]) {
     clearInterval(activeCallBillingTimers[callId]);
     delete activeCallBillingTimers[callId];
@@ -66,6 +86,7 @@ function clearCallBillingTimer(callId) {
 // ─────────────────────────────────────────────────────────────
 
 async function updateCallStatus(callId, status, disconnect_reason = null) {
+  console.log("[DEBUG] updateCallStatus", { callId, status, disconnect_reason });
   await db.query(
     `UPDATE call_history
      SET status = ?, disconnect_reason = ?
@@ -75,6 +96,7 @@ async function updateCallStatus(callId, status, disconnect_reason = null) {
 }
 
 async function getWalletBalance(userId) {
+  console.log("[DEBUG] getWalletBalance", { userId });
   const [rows] = await db.query(
     `SELECT balance FROM wallet WHERE user_id = ? LIMIT 1`,
     [Number(userId)],
@@ -83,6 +105,7 @@ async function getWalletBalance(userId) {
 }
 
 async function getAstrologerById(astrologerId) {
+  console.log("[DEBUG] getAstrologerById", { astrologerId });
   const [rows] = await db.query(
     `SELECT
   id,
@@ -102,6 +125,7 @@ LIMIT 1`,
 }
 
 async function updateCallHistoryStatus(callId, status) {
+  console.log("[DEBUG] updateCallHistoryStatus", { callId, status });
   await db.query(`UPDATE call_history SET status = ? WHERE id = ?`, [
     status,
     Number(callId),
@@ -113,6 +137,7 @@ async function updateCallHistoryStatuss(
   status,
   disconnect_reason
 ) {
+  console.log("[DEBUG] updateCallHistoryStatuss", { callId, status, disconnect_reason });
   await db.query(
     `UPDATE call_history
      SET status = ?, disconnect_reason = ?
@@ -133,6 +158,7 @@ async function updateCallHistoryStatuss(
  * (duplicate call guard)
  */
 async function getUserActiveCall(userId) {
+  console.log("[DEBUG] getUserActiveCall", { userId });
   const [rows] = await db.query(
     `SELECT id FROM call_history
      WHERE user_id = ?
@@ -148,6 +174,7 @@ async function getUserActiveCall(userId) {
  * Double deduction se bachne ke liye balance check bhi hai
  */
 async function deductWalletBalance(userId, amount) {
+  console.log("[DEBUG] deductWalletBalance", { userId, amount });
   const [result] = await db.query(
     `UPDATE wallet
      SET balance = balance - ?
@@ -158,6 +185,7 @@ async function deductWalletBalance(userId, amount) {
 }
 
 async function getUserById(userId) {
+  console.log("[DEBUG] getUserById", { userId });
   const [rows] = await db.query(
     `SELECT
       id,
@@ -182,14 +210,27 @@ module.exports = (io, socket) => {
   // ─────────────────────────────────────────
   socket.on("register", async (data) => {
     try {
+      console.log("[DEBUG] socket.register", data);
       const { user_id, role } = data;
       console.log("REGISTER EVENT =>", data);
 
-      connectedUsers[user_id] = socket.id;
+      const normalizedRole = role === "astrologer" ? "astrologer" : "user";
+      const room = normalizedRole === "astrologer"
+        ? getAstrologerRoom(user_id)
+        : getUserRoom(user_id);
+
+      if (socket.data.currentRoom && socket.data.currentRoom !== room) {
+        socket.leave(socket.data.currentRoom);
+      }
+
+      socket.join(room);
+      socket.data.currentRoom = room;
+      socket.data.role = normalizedRole;
+      socket.data.user_id = Number(user_id);
 
       // Sirf astrologer ka is_online DB mein update hoga
       // User ka is_online koi concept nahi — sirf socket track hoga
-      if (role === "astrologer") {
+      if (normalizedRole === "astrologer") {
         await setAstrologerOnlineStatus(io, user_id, 1); // online
       }
     } catch (err) {
@@ -203,7 +244,7 @@ module.exports = (io, socket) => {
   // ─────────────────────────────────────────
   socket.on("call-initiate", async (data) => {
     try {
-      console.log("CALL INITIATE EVENT =>", data);
+      console.log("[DEBUG] socket.call-initiate", data);
 
       // const { user_id, astrologer_id, call_type } = data;
 
@@ -309,10 +350,11 @@ if (member_id) {
       }
 
       // ── 6. Socket online check ──
-      const astrologerSocketId = connectedUsers[astrologer_id];
-      console.log("ASTROLOGER SOCKET ID =>", astrologerSocketId);
+      const astrologerRoom = getAstrologerRoom(astrologer_id);
+      const astrologerOnline = isRoomActive(io, astrologerRoom);
+      console.log("ASTROLOGER ROOM =>", astrologerRoom, "online=", astrologerOnline);
 
-      if (!astrologerSocketId) {
+      if (!astrologerOnline) {
         // Socket nahi mila — DB mein bhi offline kar do (sync fix)
         await setAstrologerOnlineStatus(io, astrologer_id, 0);
         return socket.emit("call-failed", {
@@ -380,7 +422,7 @@ console.log(`[CALL-INITIATE] Order created:`, {
       await setAstrologerOnlineStatus(io, astrologer_id, 2);
 
       // ── 10. Astrologer ko incoming call emit ──
-      io.to(astrologerSocketId).emit("call-initiated", {
+      io.to(astrologerRoom).emit("call-initiated", {
         success: true,
         message: "Incoming call",
         data: {
@@ -524,9 +566,9 @@ await db.query(
             await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
             // User ko timeout notify
-            const userSocketId = connectedUsers[user_id];
-            if (userSocketId) {
-              io.to(userSocketId).emit("call-timeout", {
+            const userRoom = getUserRoom(user_id);
+            if (isRoomActive(io, userRoom)) {
+              io.to(userRoom).emit("call-timeout", {
                 success: true,
                 message: "Astrologer did not respond. Please try again.",
                 data: { call_id: tokenData.call_id },
@@ -545,8 +587,8 @@ await db.query(
             }
 
             // Astrologer ko cancel notify
-            if (astrologerSocketId) {
-              io.to(astrologerSocketId).emit("call-cancelled", {
+            if (isRoomActive(io, astrologerRoom)) {
+              io.to(astrologerRoom).emit("call-cancelled", {
                 success: true,
                 message: "Call timed out — no response",
                 data: { call_id: tokenData.call_id },
@@ -579,6 +621,7 @@ await db.query(
   // ─────────────────────────────────────────
   socket.on("call-accepted", async (data) => {
     try {
+      console.log("[DEBUG] socket.call-accepted", data);
       const { call_id, user_id, astrologer_id, call_type } = data;
 
       // Timeout clear — astrologer ne respond kar diya
@@ -591,9 +634,9 @@ await db.query(
       await updateCallHistoryStatus(call_id, "connecting");
 
       // User ko notify
-      const userSocketId = connectedUsers[user_id];
-      if (userSocketId) {
-        io.to(userSocketId).emit("call-accepted", {
+      const userRoom = getUserRoom(user_id);
+      if (isRoomActive(io, userRoom)) {
+        io.to(userRoom).emit("call-accepted", {
           success: true,
           message: "Call accepted",
           data,
@@ -640,8 +683,9 @@ await db.query(
 
           console.log(`[CALL-ACCEPT] Settlement result:`, settlement);
 
-          if (userSocketId) {
-            io.to(userSocketId).emit("wallet-deducted", {
+          const userRoom = getUserRoom(user_id);
+          if (isRoomActive(io, userRoom)) {
+            io.to(userRoom).emit("wallet-deducted", {
               success: settlement.success,
               message: settlement.success
                 ? `₹${callCharge} deducted for ${actualCallType} call`
@@ -665,9 +709,9 @@ await db.query(
             );
             await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
-            const astrologerSocketId = connectedUsers[astrologer_id];
-            if (astrologerSocketId) {
-              io.to(astrologerSocketId).emit("call-ended", {
+            const astrologerRoom = getAstrologerRoom(astrologer_id);
+            if (isRoomActive(io, astrologerRoom)) {
+              io.to(astrologerRoom).emit("call-ended", {
                 success: true,
                 message: "User wallet insufficient. Call ended.",
                 data: { call_id },
@@ -675,12 +719,6 @@ await db.query(
             }
             return;
           }
-
-          // Update call_history amount after successful initial charge
-          await db.query(
-            `UPDATE call_history SET amount = amount + ? WHERE id = ?`,
-            [callCharge, call_id]
-          );
 
           if (!activeCallBillingTimers[call_id]) {
             activeCallBillingTimers[call_id] = setInterval(async () => {
@@ -729,17 +767,17 @@ await db.query(
                   );
                   await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
-                  const userSocketId = connectedUsers[user_id];
-                  const astrologerSocketId = connectedUsers[astrologer_id];
-                  if (userSocketId) {
-                    io.to(userSocketId).emit("call-ended", {
+                  const userRoom = getUserRoom(user_id);
+                  const astrologerRoom = getAstrologerRoom(astrologer_id);
+                  if (isRoomActive(io, userRoom)) {
+                    io.to(userRoom).emit("call-ended", {
                       success: false,
                       message: "Call ended because wallet balance is insufficient.",
                       data: { call_id, reason: "insufficient_balance" },
                     });
                   }
-                  if (astrologerSocketId) {
-                    io.to(astrologerSocketId).emit("call-ended", {
+                  if (isRoomActive(io, astrologerRoom)) {
+                    io.to(astrologerRoom).emit("call-ended", {
                       success: true,
                       message: "Call ended because user wallet balance is insufficient.",
                       data: { call_id, reason: "insufficient_balance" },
@@ -791,17 +829,17 @@ await db.query(
                   );
                   await setAstrologerOnlineStatus(io, astrologer_id, 1);
 
-                  const userSocketId = connectedUsers[user_id];
-                  const astrologerSocketId = connectedUsers[astrologer_id];
-                  if (userSocketId) {
-                    io.to(userSocketId).emit("call-ended", {
+                  const userRoom = getUserRoom(user_id);
+                  const astrologerRoom = getAstrologerRoom(astrologer_id);
+                  if (isRoomActive(io, userRoom)) {
+                    io.to(userRoom).emit("call-ended", {
                       success: false,
                       message: "Call ended because wallet charge could not be processed.",
                       data: { call_id, reason: "billing_failed" },
                     });
                   }
-                  if (astrologerSocketId) {
-                    io.to(astrologerSocketId).emit("call-ended", {
+                  if (isRoomActive(io, astrologerRoom)) {
+                    io.to(astrologerRoom).emit("call-ended", {
                       success: true,
                       message: "Call ended because user wallet charge could not be processed.",
                       data: { call_id, reason: "billing_failed" },
@@ -834,6 +872,7 @@ await db.query(
   // ─────────────────────────────────────────
   socket.on("call-declined", async (data, callback) => {
   try {
+    console.log("[DEBUG] socket.call-declined", data);
     const { call_id, user_id, astrologer_id } = data;
 
     // Timeout clear
@@ -861,9 +900,9 @@ await db.query(
 );
 
     // User notify
-    const userSocketId = connectedUsers[user_id];
-    if (userSocketId) {
-      io.to(userSocketId).emit("call-declined", {
+    const userRoom = getUserRoom(user_id);
+    if (isRoomActive(io, userRoom)) {
+      io.to(userRoom).emit("call-declined", {
         success: true,
         message: "Astrologer declined the call",
         call_id,
@@ -912,7 +951,7 @@ await db.query(
   // User ya astrologer — koi bhi end kar sakta hai
   // ─────────────────────────────────────────
   socket.on("call-ended", async (data) => {
-     console.log("CALL ENDED DATA =>", data);
+     console.log("[DEBUG] socket.call-ended", data);
     try {
       const { call_id, user_id, astrologer_id ,ended_by} = data;
         const endTime = Math.floor(Date.now() / 1000);
@@ -924,16 +963,16 @@ await db.query(
       clearCallBillingTimer(call_id);
 
       // DONO sides ko emit karo (jo bhi end kare, doosre ko bhi jaaye)
-      const userSocketId = connectedUsers[user_id];
-      const astrologerSocketId = connectedUsers[astrologer_id];
+      const userRoom = getUserRoom(user_id);
+      const astrologerRoom = getAstrologerRoom(astrologer_id);
 
-      if (userSocketId && userSocketId !== socket.id) {
-        io.to(userSocketId).emit("call-ended", {
-          success: true,
-          message: "Call ended",
-          data,
-        });
-      } else if (user_id && Number(user_id) !== Number(astrologer_id)) {
+      socket.to(userRoom).emit("call-ended", {
+        success: true,
+        message: "Call ended",
+        data,
+      });
+
+      if (!isRoomActive(io, userRoom) && user_id && Number(user_id) !== Number(astrologer_id)) {
         await notifyPush({
           targetType: "user",
           targetId: user_id,
@@ -947,13 +986,13 @@ await db.query(
         });
       }
 
-      if (astrologerSocketId && astrologerSocketId !== socket.id) {
-        io.to(astrologerSocketId).emit("call-ended", {
-          success: true,
-          message: "Call ended",
-          data,
-        });
-      } else if (astrologer_id) {
+      socket.to(astrologerRoom).emit("call-ended", {
+        success: true,
+        message: "Call ended",
+        data,
+      });
+
+      if (!isRoomActive(io, astrologerRoom) && astrologer_id) {
         await notifyPush({
           targetType: "astrologer",
           targetId: astrologer_id,
@@ -966,10 +1005,6 @@ await db.query(
           },
         });
       }
-  console.log("CONNECTED USERS =>", connectedUsers);
-  console.log("USER SOCKET =>", userSocketId);
-  console.log("ASTRO SOCKET =>", astrologerSocketId);
-  console.log("CURRENT SOCKET =>", socket.id);
       // DB: hangup
       const [rows] = await db.query(
   `SELECT status, start_time, call_type, per_minute_charge FROM call_history WHERE id = ? LIMIT 1`,
@@ -1052,6 +1087,7 @@ if (minutes > 0) {
   // ─────────────────────────────────────────
   socket.on("call-cancelled", async (data) => {
     try {
+      console.log("[DEBUG] socket.call-cancelled", data);
       const { call_id, user_id, astrologer_id } = data;
 
       // Timeout clear
@@ -1061,9 +1097,9 @@ if (minutes > 0) {
       }
 
       // Astrologer ko cancel notify
-      const astrologerSocketId = connectedUsers[astrologer_id];
-      if (astrologerSocketId) {
-        io.to(astrologerSocketId).emit("call-cancelled", {
+      const astrologerRoom = getAstrologerRoom(astrologer_id);
+      if (isRoomActive(io, astrologerRoom)) {
+        io.to(astrologerRoom).emit("call-cancelled", {
           success: true,
           message: "User cancelled the call",
           data,
@@ -1111,31 +1147,33 @@ await db.query(
   // ─────────────────────────────────────────
   const handleCallDisconnect = async () => {
     try {
-      for (const userId in connectedUsers) {
-        if (connectedUsers[userId] === socket.id) {
-          delete connectedUsers[userId];
+      console.log("[DEBUG] handleCallDisconnect", { socketId: socket.id, role: socket.data?.role, user_id: socket.data?.user_id });
+      const role = socket.data?.role;
+      const disconnectedId = socket.data?.user_id;
+      if (!role || !disconnectedId) {
+        return;
+      }
 
-          // Astrologer offline mark karo (is_online = 0)
-          // await setAstrologerOnlineStatus(io, Number(userId), 0);
+      const numericId = Number(disconnectedId);
 
-          // Agar ye user/astrologer active call mein tha
+      // Agar ye user/astrologer active call mein tha
           const [activeCalls] = await db.query(
             `SELECT id, user_id, agent_id
              FROM call_history
              WHERE (user_id = ? OR agent_id = ?)
              AND status IN ('initiate', 'connecting', 'ringing', 'answered')
              LIMIT 1`,
-            [Number(userId), Number(userId)],
+            [numericId, numericId],
           );
 
-          if (activeCalls.length > 0) {
-            const call = activeCalls[0];
+      if (activeCalls.length > 0) {
+        const call = activeCalls[0];
 
-            // DB: disconnect
-            clearCallBillingTimer(call.id);
-            await updateCallHistoryStatus(call.id, "disconnect");
-            // Compute final price and update order based on per_minute_charge * minutes (if available)
-            try {
+        // DB: disconnect
+        clearCallBillingTimer(call.id);
+        await updateCallHistoryStatus(call.id, "disconnect");
+        // Compute final price and update order based on per_minute_charge * minutes (if available)
+        try {
               const [callRow] = await db.query(`SELECT call_type, per_minute_charge, start_time, duration FROM call_history WHERE id = ? LIMIT 1`, [call.id]);
               const callType = callRow[0]?.call_type || "audio";
               let perMinute = Number(callRow[0]?.per_minute_charge || 0);
@@ -1168,14 +1206,16 @@ await db.query(
             }
             // Doosri party ko notify karo
             const otherUserId =
-              Number(userId) === Number(call.user_id)
+              role === "user"
                 ? call.agent_id
                 : call.user_id;
 
-            const otherSocketId = connectedUsers[otherUserId];
-            const otherType = Number(userId) === Number(call.user_id) ? "astrologer" : "user";
-            if (otherSocketId) {
-              io.to(otherSocketId).emit("call-ended", {
+            const otherType = role === "user" ? "astrologer" : "user";
+            const otherRoom = otherType === "user"
+              ? getUserRoom(otherUserId)
+              : getAstrologerRoom(otherUserId);
+            if (isRoomActive(io, otherRoom)) {
+              io.to(otherRoom).emit("call-ended", {
                 success: true,
                 message: "Other party disconnected",
                 data: { call_id: call.id },
@@ -1202,14 +1242,10 @@ await db.query(
               delete activeCallTimeouts[call.id];
             }
           }
-
-          break; // userId mil gaya, loop band karo
-        }
-      }
     } catch (err) {
       console.error("DISCONNECT CLEANUP ERROR =>", err);
     }
   };
 
-  return { handleCallDisconnect, connectedUsers };
+  return { handleCallDisconnect };
 };
