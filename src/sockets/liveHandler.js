@@ -252,6 +252,14 @@ socket.on("get_first_live", async (data, callback) => {
       role: "user"
     };
 
+    const alreadyTracked = liveSocketUsers[socket.id];
+if (!alreadyTracked || alreadyTracked.stream_id !== firstStream.stream_id) {
+  liveSocketUsers[socket.id] = {
+    user_id,
+    stream_id: firstStream.stream_id,
+    role: "user"
+  };
+}
     // ✅ Room ko viewer count emit karo
     io.to(`live_${firstStream.stream_id}`).emit("viewer_count_updated", {
       stream_id: firstStream.stream_id,
@@ -282,6 +290,11 @@ socket.on("get_first_live", async (data, callback) => {
 
       console.log(`[JOIN LIVE] User ${user_id} -> Stream ${stream_id}`);
 
+ const existing = liveSocketUsers[socket.id];
+  if (existing && existing.stream_id === stream_id && existing.user_id === user_id) {
+    console.log(`[JOIN LIVE] User ${user_id} already in stream ${stream_id}, skipping duplicate`);
+    return callback?.({ success: false, message: "Already joined this stream" });
+  }
       // Stream exist + active check
       const [streamRows] = await db.query(
         `SELECT id, astrologer_id, title, viewer_count, total_likes, status, stream_key

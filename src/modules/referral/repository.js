@@ -15,7 +15,7 @@ exports.getStats = async (astrologerId) => {
 };
 
 exports.getHistory = async (astrologerId) => {
-console.log("get history astrologerId:", astrologerId);
+// console.log("get history astrologerId:", astrologerId);
     const [rows] = await db.query(`
         SELECT
             a.id,
@@ -32,6 +32,6 @@ console.log("get history astrologerId:", astrologerId);
         ORDER BY h.id DESC
     `,[astrologerId]);
 
- console.log("histroy rows:", rows);
+//  console.log("histroy rows:", rows);
     return rows;
 };
