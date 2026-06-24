@@ -205,66 +205,66 @@ socket.on("get_first_live", async (data, callback) => {
     const firstStream = allLivesWithTokens[0];
 
     // ✅ Pehli stream mein viewer record insert/update karo
-    const [existingViewer] = await db.query(
-      `SELECT id FROM live_viewers
-       WHERE stream_id = ? AND user_id = ? LIMIT 1`,
-      [firstStream.stream_id, user_id]
-    );
+    // const [existingViewer] = await db.query(
+    //   `SELECT id FROM live_viewers
+    //    WHERE stream_id = ? AND user_id = ? LIMIT 1`,
+    //   [firstStream.stream_id, user_id]
+    // );
 
-    if (existingViewer.length) {
-      await db.query(
-        `UPDATE live_viewers
-         SET is_active = 1, joined_at = NOW(), left_at = NULL
-         WHERE stream_id = ? AND user_id = ?`,
-        [firstStream.stream_id, user_id]
-      );
-    } else {
-      await db.query(
-        `INSERT INTO live_viewers (stream_id, user_id, joined_at, is_active)
-         VALUES (?, ?, NOW(), 1)`,
-        [firstStream.stream_id, user_id]
-      );
-    }
+    // if (existingViewer.length) {
+    //   await db.query(
+    //     `UPDATE live_viewers
+    //      SET is_active = 1, joined_at = NOW(), left_at = NULL
+    //      WHERE stream_id = ? AND user_id = ?`,
+    //     [firstStream.stream_id, user_id]
+    //   );
+    // } else {
+    //   await db.query(
+    //     `INSERT INTO live_viewers (stream_id, user_id, joined_at, is_active)
+    //      VALUES (?, ?, NOW(), 1)`,
+    //     [firstStream.stream_id, user_id]
+    //   );
+    // }
 
     // ✅ Viewer count update
-    await db.query(
-      `UPDATE live_streams
-       SET viewer_count = (
-         SELECT COUNT(*) FROM live_viewers
-         WHERE stream_id = ? AND is_active = 1
-       ) WHERE id = ?`,
-      [firstStream.stream_id, firstStream.stream_id]
-    );
+    // await db.query(
+    //   `UPDATE live_streams
+    //    SET viewer_count = (
+    //      SELECT COUNT(*) FROM live_viewers
+    //      WHERE stream_id = ? AND is_active = 1
+    //    ) WHERE id = ?`,
+    //   [firstStream.stream_id, firstStream.stream_id]
+    // );
 
-    const [updated] = await db.query(
-      `SELECT viewer_count FROM live_streams WHERE id = ?`,
-      [firstStream.stream_id]
-    );
+    // const [updated] = await db.query(
+    //   `SELECT viewer_count FROM live_streams WHERE id = ?`,
+    //   [firstStream.stream_id]
+    // );
 
     // ✅ all_streams[0] ka viewer_count real update karo
-    allLivesWithTokens[0].viewer_count = updated[0].viewer_count;
+    // allLivesWithTokens[0].viewer_count = updated[0].viewer_count;
 
     // ✅ Socket room join
-    socket.join(`live_${firstStream.stream_id}`);
-    liveSocketUsers[socket.id] = {
-      user_id,
-      stream_id: firstStream.stream_id,
-      role: "user"
-    };
+//     socket.join(`live_${firstStream.stream_id}`);
+//     liveSocketUsers[socket.id] = {
+//       user_id,
+//       stream_id: firstStream.stream_id,
+//       role: "user"
+//     };
 
-    const alreadyTracked = liveSocketUsers[socket.id];
-if (!alreadyTracked || alreadyTracked.stream_id !== firstStream.stream_id) {
-  liveSocketUsers[socket.id] = {
-    user_id,
-    stream_id: firstStream.stream_id,
-    role: "user"
-  };
-}
+//     const alreadyTracked = liveSocketUsers[socket.id];
+// if (!alreadyTracked || alreadyTracked.stream_id !== firstStream.stream_id) {
+//   liveSocketUsers[socket.id] = {
+//     user_id,
+//     stream_id: firstStream.stream_id,
+//     role: "user"
+//   };
+// }
     // ✅ Room ko viewer count emit karo
-    io.to(`live_${firstStream.stream_id}`).emit("viewer_count_updated", {
-      stream_id: firstStream.stream_id,
-      viewer_count: updated[0].viewer_count
-    });
+    // io.to(`live_${firstStream.stream_id}`).emit("viewer_count_updated", {
+    //   stream_id: firstStream.stream_id,
+    //   viewer_count: updated[0].viewer_count
+    // });
 
     callback?.({
       success: true,
