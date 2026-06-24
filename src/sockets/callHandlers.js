@@ -228,11 +228,9 @@ module.exports = (io, socket) => {
       socket.data.role = normalizedRole;
       socket.data.user_id = Number(user_id);
 
-      // Sirf astrologer ka is_online DB mein update hoga
-      // User ka is_online koi concept nahi — sirf socket track hoga
-      if (normalizedRole === "astrologer") {
-        await setAstrologerOnlineStatus(io, user_id, 1); // online
-      }
+      // NOTE: Astrologer status is NOT updated here
+      // Status (online/offline/busy) is managed manually via admin/API, not socket lifecycle
+      console.log(`[REGISTER] ${normalizedRole} ${user_id} connected to room ${room}`);
     } catch (err) {
       console.error("REGISTER ERROR =>", err);
     }
