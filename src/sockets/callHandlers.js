@@ -347,17 +347,23 @@ if (member_id) {
         });
       }
 
-      // ── 6. Socket online check ──
+      // ── 6. Check astrologer DB status (not socket connection) ──
       const astrologerRoom = getAstrologerRoom(astrologer_id);
-      const astrologerOnline = isRoomActive(io, astrologerRoom);
-      console.log("ASTROLOGER ROOM =>", astrologerRoom, "online=", astrologerOnline);
+      const dbOnlineStatus = Number(astrologer.is_online);
+      console.log("[CALL-INITIATE] Astrologer DB status check:", { astrologer_id, is_online: dbOnlineStatus, room: astrologerRoom });
 
-      if (!astrologerOnline) {
-        // Socket nahi mila — DB mein bhi offline kar do (sync fix)
-        await setAstrologerOnlineStatus(io, astrologer_id, 0);
+      // Status already checked above (lines ~330-340), but verify again
+      if (dbOnlineStatus === 0) {
         return socket.emit("call-failed", {
           success: false,
           message: "Astrologer is offline",
+        });
+      }
+
+      if (dbOnlineStatus === 2) {
+        return socket.emit("call-failed", {
+          success: false,
+          message: "Astrologer is busy in another call",
         });
       }
 
