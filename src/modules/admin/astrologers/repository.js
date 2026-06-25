@@ -96,13 +96,19 @@ exports.getList = async ({ search, status, page, limit }) => {
 // };
 
 exports.getById = async (id) => {
+  // const [[astro]] = await pool.query(`
+  //   SELECT a.*,
+  //     COALESCE(w.balance, 0) AS wallet_balance
+  //   FROM astrologers a
+  //   LEFT JOIN wallet w ON w.astrologer_id = a.id
+  //   WHERE a.id = ?
+  // `, [id]);
+
   const [[astro]] = await pool.query(`
-    SELECT a.*,
-      COALESCE(w.balance, 0) AS wallet_balance
-    FROM astrologers a
-    LEFT JOIN wallet w ON w.astrologer_id = a.id
-    WHERE a.id = ?
-  `, [id]);
+  SELECT *
+  FROM astrologers
+  WHERE id = ?
+`, [id]);
 
   if (!astro) return null;
 
@@ -169,6 +175,14 @@ const [withdrawals] = await pool.query(`
   FROM astrologer_withdrawals
   WHERE astrologer_id = ?
   ORDER BY requested_at DESC
+`, [id]);
+
+const [[withdrawStats]] = await pool.query(`
+  SELECT
+    COALESCE(SUM(amount),0) AS totalWithdrawals
+  FROM astrologer_withdrawals
+  WHERE astrologer_id = ?
+  AND status = 'approved'
 `, [id]);
 
 // const [[stats]] = await pool.query(`
@@ -290,6 +304,10 @@ return {
   transactions: txns,
   reviews,
   withdrawals,
+
+    totalWithdrawals: Number(
+    withdrawStats.totalWithdrawals || 0
+  ),
 
   // =========================
   // CHAT
