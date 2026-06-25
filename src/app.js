@@ -1,3 +1,4 @@
+process.env.TZ = 'Asia/Kolkata';
 const express = require("express");
 require("dotenv").config();
 
