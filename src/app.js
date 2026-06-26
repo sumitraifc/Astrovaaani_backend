@@ -151,6 +151,7 @@ app.use("/api/admin/settings",      require("./modules/admin/settings/routes"));
 app.use("/api/admin/expertise",     require("./modules/admin/expertise/routes"));
 app.use("/api/admin/support",             require("./modules/admin/support/routes"));
 app.use("/api/admin/withdrawals",         require("./modules/admin/withdrawals/routes"));
+app.use("/api/admin/admin-payout",        require("./modules/admin/admin-payout/routes"));
 app.use("/api/admin/reviews",             require("./modules/admin/reviews/routes"));
 app.use("/api/admin/withdrawal-charges",  require("./modules/admin/withdrawal-charges/routes"));
 app.use("/api/admin/referral-settings",   require("./modules/admin/referral-settings/routes"));

@@ -275,6 +275,46 @@ exports.getHome = async (astrologerId) => {
     endOfLastWeek
   ]);
 
+  // =========================
+// TOTAL SESSIONS
+// =========================
+
+const [[sessionStats]] = await db.query(`
+SELECT
+
+COALESCE((
+    SELECT COUNT(*)
+    FROM chat_conversations
+    WHERE astrologer_id = ?
+    AND status IN ('ended','active','blocked')
+),0) AS chatSessions,
+
+COALESCE((
+    SELECT COUNT(*)
+    FROM call_history
+    WHERE agent_id = ?
+    AND call_type = 'audio'
+    AND status IN ('answered','hangup','disconnect')
+),0) AS audioSessions,
+
+COALESCE((
+    SELECT COUNT(*)
+    FROM call_history
+    WHERE agent_id = ?
+    AND call_type = 'video'
+    AND status IN ('answered','hangup','disconnect')
+),0) AS videoSessions
+`, [
+    astrologerId,
+    astrologerId,
+    astrologerId
+]);
+
+const totalSessions =
+    Number(sessionStats.chatSessions) +
+    Number(sessionStats.audioSessions) +
+    Number(sessionStats.videoSessions);
+
   return {
 
     this_month_earning: thisMonthEarning,
@@ -297,7 +337,12 @@ exports.getHome = async (astrologerId) => {
       thisMonthWithdraw[0].total,
       lastMonthWithdraw[0].total
     ),
-
+      
+        total_sessions: totalSessions,
+    chat_sessions: Number(sessionStats.chatSessions),
+    audio_sessions: Number(sessionStats.audioSessions),
+    video_sessions: Number(sessionStats.videoSessions),
+    
     this_week_clients: thisWeekClients[0].total,
     last_week_clients: lastWeekClients[0].total,
     client_growth_percent: getPercentageChange(
