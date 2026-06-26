@@ -23,7 +23,7 @@ exports.getList = async ({ search, status, page, limit }) => {
 
   const [rows] = await pool.query(`
     SELECT r.id, r.rating, r.comment, r.booking_type, r.status, r.created_at,
-      u.name AS user_name, u.phone AS user_phone,
+      u.name AS user_name, u.mobile AS user_phone,
       a.name AS astrologer_name, a.profile_image AS astrologer_image
     FROM astrologer_reviews r
     JOIN users u ON u.id = r.user_id
