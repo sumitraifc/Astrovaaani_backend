@@ -100,6 +100,33 @@ const [[callStats]] = await pool.query(`
      WHERE status IN ('answered', 'hangup', 'disconnect') AND DATE(created_at) = CURDATE()
   `);
 
+  const [[todayChatStats]] = await pool.query(`
+  SELECT 
+    COUNT(*) AS todayChatSessions,
+    COALESCE(SUM(amount), 0) AS todayChatRevenue,
+    COALESCE(SUM(amount * admin_commission / 100), 0) AS todayChatAdmin,
+    COALESCE(SUM(CEIL(duration / 60)), 0) AS todayChatMinutes
+  FROM chat_conversations
+  WHERE status IN ('ended','active','blocked')
+  AND DATE(created_at) = CURDATE()
+`);
+const [[todayCallStats]] = await pool.query(`
+  SELECT
+
+    -- AUDIO
+    SUM(CASE WHEN call_type='audio' THEN 1 ELSE 0 END) AS todayAudioSessions,
+    COALESCE(SUM(CASE WHEN call_type='audio' THEN amount ELSE 0 END),0) AS todayAudioRevenue,
+    COALESCE(SUM(CASE WHEN call_type='audio' THEN CEIL(duration / 60) ELSE 0 END),0) AS todayAudioMinutes,
+
+    -- VIDEO
+    SUM(CASE WHEN call_type='video' THEN 1 ELSE 0 END) AS todayVideoSessions,
+    COALESCE(SUM(CASE WHEN call_type='video' THEN amount ELSE 0 END),0) AS todayVideoRevenue,
+    COALESCE(SUM(CASE WHEN call_type='video' THEN CEIL(duration / 60) ELSE 0 END),0) AS todayVideoMinutes
+
+  FROM call_history
+  WHERE status IN ('answered','hangup','disconnect')
+  AND DATE(created_at) = CURDATE()
+`);
   return {
     totalUsers:       Number(users.totalUsers),
     activeUsers:      Number(users.activeUsers),
@@ -122,6 +149,14 @@ const [[callStats]] = await pool.query(`
 audioRevenue: parseFloat(callStats.audioRevenue),
 totalVideoSessions: Number(callStats.totalVideoSessions),
 videoRevenue: parseFloat(callStats.videoRevenue),
+todayChatSessions: Number(todayChatStats.todayChatSessions),
+todayChatMinutes: Number(todayChatStats.todayChatMinutes),
+todayAudioSessions: Number(todayCallStats.todayAudioSessions),
+todayAudioRevenue: parseFloat(todayCallStats.todayAudioRevenue),
+todayAudioMinutes: Number(todayCallStats.todayAudioMinutes),
+todayVideoSessions: Number(todayCallStats.todayVideoSessions),
+todayVideoRevenue: parseFloat(todayCallStats.todayVideoRevenue),
+todayVideoMinutes: Number(todayCallStats.todayVideoMinutes),
 
   //  AUDIO
  
