@@ -145,6 +145,50 @@ exports.getById = async ({ type, id }) => {
   return { ...row, chatMessages: null, callTimeline };
 };
 
+// Sessions for a specific user — chat / audio / video
+exports.getByUserId = async ({ userId, type, page, limit }) => {
+  const offset = (page - 1) * limit;
+
+  if (type === 'chat') {
+    const [[{ total }]] = await pool.query(
+      'SELECT COUNT(*) AS total FROM chat_conversations WHERE user_id = ?', [userId]
+    );
+    const [rows] = await pool.query(`
+      SELECT cc.id, 'chat' AS type,
+        a.name AS astrologer_name, a.expertise AS astrologer_specialization,
+        cc.started_at AS start_time, cc.ended_at AS end_time,
+        cc.duration, cc.amount, cc.charge_per_min,
+        ROUND(cc.amount * cc.admin_commission / 100, 2) AS platform_fee,
+        ROUND(cc.amount * (100 - cc.admin_commission) / 100, 2) AS astrologer_earning,
+        cc.status, cc.user_rating, cc.user_review, cc.total_messages, cc.created_at
+      FROM chat_conversations cc
+      JOIN astrologers a ON a.id = cc.astrologer_id
+      WHERE cc.user_id = ?
+      ORDER BY cc.created_at DESC LIMIT ? OFFSET ?
+    `, [userId, limit, offset]);
+    return { total, data: rows };
+  }
+
+  const callType = type === 'audio' ? 'audio' : 'video';
+  const [[{ total }]] = await pool.query(
+    'SELECT COUNT(*) AS total FROM call_history WHERE user_id = ? AND call_type = ?', [userId, callType]
+  );
+  const [rows] = await pool.query(`
+    SELECT ch.id, ch.call_type AS type,
+      a.name AS astrologer_name, a.expertise AS astrologer_specialization,
+      ch.created_at AS start_time,
+      CEIL(ch.duration / 60) AS duration, ch.amount, ch.per_minute_charge AS charge_per_min,
+      ROUND(ch.amount * ch.admin_commission_percent / 100, 2) AS platform_fee,
+      ROUND(ch.amount * (100 - ch.admin_commission_percent) / 100, 2) AS astrologer_earning,
+      ch.status, ch.user_rating, ch.user_review, ch.recording_url, ch.created_at
+    FROM call_history ch
+    JOIN astrologers a ON a.id = ch.agent_id
+    WHERE ch.user_id = ? AND ch.call_type = ?
+    ORDER BY ch.created_at DESC LIMIT ? OFFSET ?
+  `, [userId, callType, limit, offset]);
+  return { total, data: rows };
+};
+
 exports.getStats = async () => {
   const [[chat]] = await pool.query(`
     SELECT COUNT(*) AS total,

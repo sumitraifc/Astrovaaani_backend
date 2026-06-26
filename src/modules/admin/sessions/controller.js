@@ -27,3 +27,13 @@ exports.getStats = async (req, res) => {
     res.json({ success: true, data });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
+
+exports.getByUserId = async (req, res) => {
+  try {
+    const { type = 'chat', page = 1, limit = 10 } = req.query;
+    if (!['chat', 'audio', 'video'].includes(type))
+      return res.status(400).json({ success: false, message: 'type must be chat | audio | video' });
+    const data = await service.getByUserId({ userId: req.params.userId, type, page: +page, limit: +limit });
+    res.json({ success: true, ...data });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};
