@@ -19,7 +19,7 @@ exports.getList = async ({ search, status, page, limit }) => {
       where += " AND a.approval_status = 'partial_rejected' AND a.registration_completed = 1";
     } else if (status === 'resubmitted') {
       // Astrologer ne sabhi steps dobara fill kiye (registration_completed=1) but admin ne abhi approve nahi kiya
-      where += " AND a.registration_completed = 1 AND a.approval_status = 'pending'";
+      where += " AND a.registration_completed = 1 AND a.approval_status = 'pending' AND a.resubmitted = 1";
     } else if (status === 'resume') {
       // Astrologer step 1-4 fill kar raha hai (incomplete registration, approval_status='resume')
       where += " AND a.approval_status = 'resume' AND a.registration_completed = 0";

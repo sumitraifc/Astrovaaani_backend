@@ -188,7 +188,8 @@ exports.saveStep = async (step, id, payload) => {
   // ======================
   let updateData = {
     ...payload,
-    [stepStatusKey]: "pending"
+    [stepStatusKey]: "pending",
+     resubmitted: 1
   };
 
   // STEP FLOW CONTROL
