@@ -132,6 +132,8 @@ app.use("/api/astrologer/home/", require("./modules/astrosubmodule/astrologerhom
 
 app.use("/api/astrologer/support-legal", require("./modules/astrosubmodule/astrosupportandleagl/routes"));
 
+app.use("/api/user/gift-amount", require("./modules/giftamounthandle/routes"));
+
 app.use(
     "/api/referral",
     require("./modules/referral/routes")
