@@ -688,6 +688,15 @@ await db.query(
 
           console.log(`[CALL-ACCEPT] Settlement result:`, settlement);
 
+          if (settlement.success) {
+            await db.query(
+              `UPDATE call_history
+               SET amount = amount + ?, per_minute_charge = ?
+               WHERE id = ?`,
+              [callCharge, callCharge, call_id]
+            );
+          }
+
           const userRoom = getUserRoom(user_id);
           if (isRoomActive(io, userRoom)) {
             io.to(userRoom).emit("wallet-deducted", {
