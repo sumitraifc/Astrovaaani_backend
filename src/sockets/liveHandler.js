@@ -719,7 +719,14 @@ await db.query(
          WHERE id = ? AND astrologer_id = ?`,
         [stream_id, astrologer_id]
       );
-
+          await db.query(
+  `UPDATE orders
+   SET end_time = NOW()
+   WHERE astrologer_id = ?
+     AND consultation_type = 'live'
+     AND end_time IS NULL`,
+  [astrologer_id]
+);
       await db.query(
         `UPDATE live_viewers SET is_active = 0, left_at = NOW()
          WHERE stream_id = ? AND is_active = 1`,
