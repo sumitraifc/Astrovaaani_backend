@@ -402,35 +402,37 @@ console.log(`[CHAT-CREATE] Order created:`, {
       );
 
       /**
-       * INITIAL CHAT CHARGE
+       * No immediate chat charge before astrologer reply.
+       * Charges will start only when astrologer sends the first reply
+       * and the per-minute timer begins.
        */
-      const initialCharge = chargePerMin;
-      const settlementResult = await settleConsultationCharge({
-        user_id,
-        astrologer_id,
-        amount: initialCharge,
-        sessionType: "chat",
-        sessionId: uniqueKey,
-        reason: "Chat start charge"
-      });
+      // const initialCharge = chargePerMin;
+      // const settlementResult = await settleConsultationCharge({
+      //   user_id,
+      //   astrologer_id,
+      //   amount: initialCharge,
+      //   sessionType: "chat",
+      //   sessionId: uniqueKey,
+      //   reason: "Chat start charge"
+      // });
 
-      if (!settlementResult.success) {
-        await db.query(`DELETE FROM chat_conversations WHERE id = ?`, [insertResult.insertId]);
-        await db.query(`DELETE FROM orders WHERE order_id = ?`, [orderId]);
-        return callback({
-          success: false,
-          message: "Unable to process initial chat charge. Please try again."
-        });
-      }
+      // if (!settlementResult.success) {
+      //   await db.query(`DELETE FROM chat_conversations WHERE id = ?`, [insertResult.insertId]);
+      //   await db.query(`DELETE FROM orders WHERE order_id = ?`, [orderId]);
+      //   return callback({
+      //     success: false,
+      //     message: "Unable to process initial chat charge. Please try again."
+      //   });
+      // }
 
-      await db.query(
-        `
-        UPDATE chat_conversations
-        SET amount = amount + ?, duration = duration + 1, updated_at = NOW()
-        WHERE conversation_id = ?
-        `,
-        [initialCharge, uniqueKey]
-      );
+      // await db.query(
+      //   `
+      //   UPDATE chat_conversations
+      //   SET amount = amount + ?, duration = duration + 1, updated_at = NOW()
+      //   WHERE conversation_id = ?
+      //   `,
+      //   [initialCharge, uniqueKey]
+      // );
 
       const [walletBalanceRows] = await db.query(
         `SELECT balance FROM wallet WHERE user_id = ? LIMIT 1`,
@@ -1237,6 +1239,79 @@ socket.on("get_chat_history", async (data, callback) => {
           return;
         }
 
+        const charge = Number(conversation.charge_per_min || 0);
+
+        if (charge > 0) {
+          const [walletRows] = await db.query(
+            `
+            SELECT balance
+            FROM wallet
+            WHERE user_id = ?
+            LIMIT 1
+            `,
+            [conversation.user_id]
+          );
+
+          const walletBalance = Number(walletRows[0]?.balance || 0);
+
+          if (walletBalance <= charge) {
+            io.to("room_" + conversation_id).emit("low_balance", {
+              balance: walletBalance
+            });
+            return;
+          }
+
+          const settlement = await settleConsultationCharge({
+            user_id: conversation.user_id,
+            astrologer_id: conversation.astrologer_id,
+            amount: charge,
+            sessionType: "chat",
+            sessionId: conversation_id,
+            reason: "Chat Consultation"
+          });
+
+          if (settlement.success) {
+            await db.query(
+              `
+              UPDATE chat_conversations
+              SET
+                amount = amount + ?,
+                duration = duration + 1,
+                updated_at = NOW()
+              WHERE conversation_id = ?
+              `,
+              [charge, conversation_id]
+            );
+
+            await db.query(
+              `UPDATE astrologers
+               SET total_chat_minutes = COALESCE(total_chat_minutes,0) + 1
+               WHERE id = ?`,
+              [conversation.astrologer_id]
+            );
+
+            const [updatedWallet] = await db.query(
+              `
+              SELECT balance
+              FROM wallet
+              WHERE user_id = ?
+              LIMIT 1
+              `,
+              [conversation.user_id]
+            );
+
+            io.to("room_" + conversation_id).emit("wallet_updated", {
+              deducted: charge,
+              remaining_balance: Number(updatedWallet[0]?.balance || 0)
+            });
+
+            console.log("Immediate charge deducted on astrologer reply:", conversation_id);
+          } else {
+            console.log("Immediate charge failed for:", conversation_id, settlement);
+            return;
+          }
+        }
+
         /**
          * START TIMER FLAG
          */
@@ -1250,8 +1325,8 @@ socket.on("get_chat_history", async (data, callback) => {
         );
 
         console.log("Timer Started:", conversation_id);
-await setAstrologerOnlineStatus(io, conversation.astrologer_id, 2);
-  console.log(`[CHAT STARTED] Astrologer ${conversation.astrologer_id} -> BUSY (first message sent)`);
+        await setAstrologerOnlineStatus(io, conversation.astrologer_id, 2);
+        console.log(`[CHAT STARTED] Astrologer ${conversation.astrologer_id} -> BUSY (first message sent)`);
         activeTimers[conversation_id] = setInterval(
           async () => {
             try {
