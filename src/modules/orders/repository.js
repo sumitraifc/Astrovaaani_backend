@@ -83,20 +83,66 @@ exports.getAll = async (userId) => {
   return rows;
 };
 
+
 // exports.getById = async (userId, id) => {
 //   const [rows] = await db.query(
-//     "SELECT * FROM orders WHERE id=? AND user_id=?",
-//     [id, userId]
+//     `
+//     SELECT 
+//       -- ORDER DETAILS
+//       o.id AS order_id,
+//       o.order_id AS order_no,
+//       o.user_id,
+//       o.consultation_type,
+//       o.price,
+//       o.status AS order_status,
+//       o.start_time,
+//       o.end_time,
+//       TIMESTAMPDIFF(MINUTE, o.start_time, o.end_time) AS duration_minutes,
+//       o.created_at,
+
+//       -- ASTROLOGER DETAILS
+//       a.id AS astrologer_id,
+//       a.uuid,
+//       a.name AS astrologer_name,
+//       a.profile_image,
+//       a.experience,
+//       a.rating,
+//       a.total_reviews,
+//       a.languages,
+//       a.expertise,
+//       a.chat_charge,
+//       a.audio_charge,
+//       a.video_charge,
+//       a.is_online,
+//       a.status AS astrologer_status,
+//       a.about,
+
+//       -- FAVOURITE FLAG
+//       CASE 
+//         WHEN f.id IS NOT NULL THEN TRUE 
+//         ELSE FALSE 
+//       END AS is_favourite
+
+//     FROM orders o
+//     LEFT JOIN astrologers a ON a.id = o.astrologer_id
+
+//     LEFT JOIN favorites f 
+//       ON f.astrologer_id = o.astrologer_id 
+//       AND f.user_id = ?
+
+//     WHERE o.id = ? AND o.user_id = ?
+//     `,
+//     [userId, id, userId]
 //   );
 
-//   return rows[0];
+//   const data = rows[0];
+//   return data;
 // };
 
 exports.getById = async (userId, id) => {
   const [rows] = await db.query(
     `
     SELECT 
-      -- ORDER DETAILS
       o.id AS order_id,
       o.order_id AS order_no,
       o.user_id,
@@ -105,10 +151,14 @@ exports.getById = async (userId, id) => {
       o.status AS order_status,
       o.start_time,
       o.end_time,
-      TIMESTAMPDIFF(MINUTE, o.start_time, o.end_time) AS duration_minutes,
+
+      CASE 
+        WHEN o.consultation_type = 'chat' THEN COALESCE(cc.duration, 0)
+        ELSE TIMESTAMPDIFF(MINUTE, o.start_time, o.end_time)
+      END AS duration_minutes,
+
       o.created_at,
 
-      -- ASTROLOGER DETAILS
       a.id AS astrologer_id,
       a.uuid,
       a.name AS astrologer_name,
@@ -125,24 +175,27 @@ exports.getById = async (userId, id) => {
       a.status AS astrologer_status,
       a.about,
 
-      -- FAVOURITE FLAG
       CASE 
         WHEN f.id IS NOT NULL THEN TRUE 
         ELSE FALSE 
       END AS is_favourite
 
     FROM orders o
-    LEFT JOIN astrologers a ON a.id = o.astrologer_id
+
+    LEFT JOIN astrologers a 
+      ON a.id = o.astrologer_id
 
     LEFT JOIN favorites f 
       ON f.astrologer_id = o.astrologer_id 
       AND f.user_id = ?
+
+    LEFT JOIN chat_conversations cc 
+      ON cc.conversation_id = o.conversation_id
 
     WHERE o.id = ? AND o.user_id = ?
     `,
     [userId, id, userId]
   );
 
-  const data = rows[0];
-  return data;
+  return rows[0];
 };
