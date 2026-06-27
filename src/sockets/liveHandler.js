@@ -645,22 +645,33 @@ if (!settlement.success) {
 //   ]
 // );
 
-      const [giftResult] = await db.query(
-        `INSERT INTO live_gifts
-         (stream_id, user_id, astrologer_id, amount, message, wallet_txn_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-        [stream_id, user_id, astrologer_id, giftAmount, message || null, txnResult.insertId]
-      );
-
-      // Astrologer wallet credit
-await db.query(
-  `UPDATE astrologers
-   SET
-     wallet_balance = wallet_balance + ?,
-     total_earnings = total_earnings + ?
-   WHERE id = ?`,
-  [giftAmount, giftAmount, astrologer_id]
+      // const [giftResult] = await db.query(
+      //   `INSERT INTO live_gifts
+      //    (stream_id, user_id, astrologer_id, amount, message, wallet_txn_id, created_at)
+      //    VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+      //   [stream_id, user_id, astrologer_id, giftAmount, message || null, txnResult.insertId]
+      // );
+const [giftResult] = await db.query(
+  `INSERT INTO live_gifts
+   (stream_id, user_id, astrologer_id, amount, message, wallet_txn_id, created_at)
+   VALUES (?, ?, ?, ?, ?, NULL, NOW())`,
+  [
+    stream_id,
+    user_id,
+    astrologer_id,
+    giftAmount,
+    message || null
+  ]
 );
+      // Astrologer wallet credit
+// await db.query(
+//   `UPDATE astrologers
+//    SET
+//      wallet_balance = wallet_balance + ?,
+//      total_earnings = total_earnings + ?
+//    WHERE id = ?`,
+//   [giftAmount, giftAmount, astrologer_id]
+// );
       // ===============================
 // ORDER CREATE FOR LIVE SESSION
 // ===============================
@@ -671,7 +682,7 @@ await db.query(
    VALUES (?, ?, ?, ?, ?, 'live', ?, ?, 'completed', NOW(), NOW())`,
   [
     `LIVE_${giftResult.insertId}_${Date.now()}`, // order_id unique
-    null, // live me conversation_id null rahega (ya stream_id bhi rakh sakte ho)
+    stream_id || null, // live me conversation_id null rahega (ya stream_id bhi rakh sakte ho)
     user_id,
     astrologer_id,
     null, // astrologer_name (agar chaho to fetch karke daal sakte ho)
