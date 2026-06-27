@@ -40,6 +40,7 @@ exports.getTransactions = async (userId, type) => {
       type,
       amount,
       reason,
+      status,
       created_at
     FROM wallet_transactions
     WHERE user_id=?
@@ -61,6 +62,7 @@ exports.getTransactions = async (userId, type) => {
     transactions
   };
 };
+
 exports.updateBalance = async (userId, amount) => {
   await db.query(
     `
