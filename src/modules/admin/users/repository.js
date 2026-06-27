@@ -70,6 +70,13 @@ exports.getAll = async ({ search, status, page, limit }) => {
 
   const userIds = rows.map((r) => r.id);
 
+  if (userIds.length === 0) {
+  return {
+    total,
+    data: []
+  };
+}
+
   // =========================
   // 3. SPENT DATA
   // =========================

@@ -58,3 +58,18 @@ exports.createCallHistory = async (data) => {
         throw error;
     }
 };
+
+exports.getCallByChannel = async (channel_name) => {
+
+    const [[call]] = await db.query(
+        `
+        SELECT *
+        FROM call_history
+        WHERE channel_name = ?
+        LIMIT 1
+        `,
+        [channel_name]
+    );
+
+    return call;
+};

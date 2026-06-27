@@ -10,4 +10,9 @@ router.post(
     controller.generateToken
 );
 
+router.post(
+    "/manual-decline",
+    controller.manualDecline
+);
+
 module.exports = router;

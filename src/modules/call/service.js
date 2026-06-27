@@ -9,6 +9,7 @@ const {
 } = require("../../config/agora");
 
 const repository = require("./repository");
+const db = require("../../config/db");
 
 exports.generateAgoraToken = async (body) => {
   try {
@@ -137,4 +138,85 @@ exports.generateAgoraToken = async (body) => {
 
     throw error;
   }
+};
+
+exports.manualDecline = async (req, res) => {
+
+    try {
+
+        const io = req.app.get("io");
+
+        const { channel_name } = req.body;
+
+        if (!channel_name) {
+            return res.status(400).json({
+                success: false,
+                message: "channel_name is required"
+            });
+        }
+
+        const callData =
+            await repository.getCallByChannel(
+                channel_name
+            );
+
+        if (!callData) {
+            return res.status(404).json({
+                success: false,
+                message: "Call not found"
+            });
+        }
+
+        await db.query(
+            `UPDATE call_history
+             SET
+                status='declined',
+                end_time=NOW(),
+                updated_at=NOW()
+             WHERE channel_name=?`,
+            [channel_name]
+        );
+
+        const payload = {
+            success: true,
+            message: "Call declined",
+            data: {
+                call_id: callData.id,
+                channel_name: callData.channel_name,
+                caller_id: callData.user_id,
+                agent_id: callData.agent_id,
+                call_type: callData.call_type,
+                status: "declined"
+            }
+        };
+
+        io.to(String(callData.user_id))
+            .emit(
+                "call:status_update",
+                payload
+            );
+
+        io.to(String(callData.agent_id))
+            .emit(
+                "call:status_update",
+                payload
+            );
+
+        return res.json({
+            success: true,
+            message: "Call declined successfully",
+            data: payload.data
+        });
+
+    } catch (error) {
+
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: error.message
+        });
+
+    }
+
 };
