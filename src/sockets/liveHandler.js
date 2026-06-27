@@ -1,5 +1,6 @@
 const db = require("../config/db");
 const liveService = require("../modules/live/service");
+const { settleConsultationCharge } = require("../utils/settlement");
 
 /**
  * Socket se connected live users track karo
@@ -595,16 +596,30 @@ socket.on("get_first_live", async (data, callback) => {
         });
       }
 
-      const [walletUpdate] = await db.query(
-        `UPDATE wallet SET balance = balance - ?
-         WHERE user_id = ? AND balance >= ?`,
-        [giftAmount, user_id, giftAmount]
-      );
+      // const [walletUpdate] = await db.query(
+      //   `UPDATE wallet SET balance = balance - ?
+      //    WHERE user_id = ? AND balance >= ?`,
+      //   [giftAmount, user_id, giftAmount]
+      // );
 
-      if (walletUpdate.affectedRows === 0) {
-        return callback?.({ success: false, message: "Wallet deduction failed" });
-      }
+      // if (walletUpdate.affectedRows === 0) {
+      //   return callback?.({ success: false, message: "Wallet deduction failed" });
+      // }
+const settlement = await settleConsultationCharge({
+  user_id,
+  astrologer_id,
+  amount: giftAmount,
+  sessionType: "live",
+  sessionId: stream_id,
+  reason: "Live Gift"
+});
 
+if (!settlement.success) {
+  return callback?.({
+    success: false,
+    message: settlement.reason
+  });
+}
       // const [txnResult] = await db.query(
       //   `INSERT INTO wallet_transactions
       //    (user_id, type, amount, reason, created_at)

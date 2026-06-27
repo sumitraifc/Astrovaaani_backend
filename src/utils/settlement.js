@@ -74,6 +74,7 @@ async function settleConsultationCharge({
         [commissionPercent, Number(sessionId)]
       );
       console.log(`[SETTLEMENT] Call history update:`, callUpdate);
+      
     }
 
     // NOTE: Do NOT update `orders` here per-minute; orders should record final total
