@@ -466,6 +466,7 @@ console.log(`[CALL-INITIATE] Order created:`, {
         type: "data",
         data: {
           channel_name: String(tokenData.channel_name),
+          token:String(tokenData.astrologer_token),
           start_time: String(Date.now()),
           call_type: String(call_type),
           video_call_status: "pending",
@@ -482,7 +483,7 @@ console.log(`[CALL-INITIATE] Order created:`, {
             : "",
           call_id: String(tokenData.call_id),
           status: "connecting",
-          type: "call_initiated"
+          type: "call_initiated",
         }
       });
 
