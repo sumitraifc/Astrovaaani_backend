@@ -627,23 +627,23 @@ if (!settlement.success) {
       //   [user_id, giftAmount, `Live gift to astrologer ${astrologer_id}`]
       // );
 
-      const [[astro]] = await db.query(
-  `SELECT name FROM astrologers WHERE id = ?`,
-  [astrologer_id]
-);
+//       const [[astro]] = await db.query(
+//   `SELECT name FROM astrologers WHERE id = ?`,
+//   [astrologer_id]
+// );
 
-const astrologerName = astro?.name || `#${astrologer_id}`;
+// const astrologerName = astro?.name || `#${astrologer_id}`;
 
-const [txnResult] = await db.query(
-  `INSERT INTO wallet_transactions
-   (user_id, type, amount, reason, created_at)
-   VALUES (?, 'debit', ?, ?, NOW())`,
-  [
-    user_id,
-    giftAmount,
-    `Live gift to ${astrologerName}`
-  ]
-);
+// const [txnResult] = await db.query(
+//   `INSERT INTO wallet_transactions
+//    (user_id, type, amount, reason, created_at)
+//    VALUES (?, 'debit', ?, ?, NOW())`,
+//   [
+//     user_id,
+//     giftAmount,
+//     `Live gift to ${astrologerName}`
+//   ]
+// );
 
       const [giftResult] = await db.query(
         `INSERT INTO live_gifts
