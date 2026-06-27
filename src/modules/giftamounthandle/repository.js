@@ -15,7 +15,7 @@ exports.getList = async () => {
   return rows.map((gift) => ({
     ...gift,
     image: gift.image
-      ? `${process.env.BASE_URL}/uploads/${gift.image}`
+      ? `${process.env.BASE_URL}/uploads/gifts/${gift.image}`
       : null,
   }));
 };
