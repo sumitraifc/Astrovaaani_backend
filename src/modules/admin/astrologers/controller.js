@@ -2,8 +2,8 @@ const service = require('./service');
 
 exports.getList = async (req, res) => {
   try {
-    const { search = '', status = 'all', page = 1, limit = 10 } = req.query;
-    const data = await service.getList({ search, status, page: +page, limit: +limit });
+    const { search = '', status = 'all',online_status = '', page = 1, limit = 10 } = req.query;
+    const data = await service.getList({ search, status, online_status, page: +page, limit: +limit });
     res.json({ success: true, ...data });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };

@@ -1,6 +1,6 @@
 const pool = require('../../../config/db');
 
-exports.getList = async ({ search, status, page, limit }) => {
+exports.getList = async ({ search, status,online_status, page, limit }) => {
   const offset = (page - 1) * limit;
   let where = 'WHERE 1=1';
   const params = [];
@@ -28,7 +28,15 @@ exports.getList = async ({ search, status, page, limit }) => {
       params.push(status);
     }
   }
-
+if (online_status) {
+  if (online_status === "online") {
+    where += " AND a.is_online = 1";
+  } else if (online_status === "busy") {
+    where += " AND a.is_online = 2";
+  } else if (online_status === "offline") {
+    where += " AND a.is_online = 0";
+  }
+}
   const [[{ total }]] = await pool.query(
     `SELECT COUNT(*) AS total FROM astrologers a ${where}`, params
   );
