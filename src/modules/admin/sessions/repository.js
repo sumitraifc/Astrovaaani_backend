@@ -215,5 +215,17 @@ exports.getStats = async () => {
     FROM call_history
   `);
 
-  return { chat, call };
+const [[astroStats]] = await pool.query(`
+  SELECT
+    COALESCE(SUM(chat_charge),0) AS totalChatCharge,
+    COALESCE(SUM(audio_charge),0) AS totalAudioCharge,
+    COALESCE(SUM(video_charge),0) AS totalVideoCharge,
+
+    COALESCE(AVG(chat_charge),0) AS avgChatCharge,
+    COALESCE(AVG(audio_charge),0) AS avgAudioCharge,
+    COALESCE(AVG(video_charge),0) AS avgVideoCharge
+  FROM astrologers
+  WHERE approval_status='approved'
+`);
+  return { chat, call , astroStats};
 };

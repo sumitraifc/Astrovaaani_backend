@@ -81,7 +81,25 @@ const [[callStats]] = await pool.query(`
   FROM call_history
   WHERE status IN ('answered', 'hangup', 'disconnect')
 `);
-  const totalRevenue = parseFloat(chatStats.chatRevenue) + parseFloat(callStats.callRevenue);
+const [[giftStats]] = await pool.query(`
+  SELECT
+    COALESCE(SUM(amount), 0) AS giftRevenue,
+    COUNT(*) AS totalGifts
+  FROM live_gifts
+`);
+const [[todayGiftStats]] = await pool.query(`
+  SELECT
+    COALESCE(SUM(amount), 0) AS todayGiftRevenue,
+    COUNT(*) AS todayTotalGifts
+  FROM live_gifts
+  WHERE DATE(created_at) = CURDATE()
+`);
+
+  // const totalRevenue = parseFloat(chatStats.chatRevenue) + parseFloat(callStats.callRevenue);
+  const totalRevenue =
+  parseFloat(chatStats.chatRevenue) +
+  parseFloat(callStats.callRevenue) +
+  parseFloat(giftStats.giftRevenue);
   const adminIncome  = parseFloat(chatStats.chatAdminIncome) + parseFloat(callStats.callAdminIncome);
 
   const [[todayChat]] = await pool.query(`
@@ -127,6 +145,7 @@ const [[todayCallStats]] = await pool.query(`
   WHERE status IN ('answered','hangup','disconnect')
   AND DATE(created_at) = CURDATE()
 `);
+
   return {
     totalUsers:       Number(users.totalUsers),
     activeUsers:      Number(users.activeUsers),
@@ -134,7 +153,11 @@ const [[todayCallStats]] = await pool.query(`
     pendingAstrologers: Number(astros.pendingAstrologers),
     pendingRefunds:   Number(refunds.pendingRefunds),
     totalRevenue,
-    todayRevenue:     parseFloat(todayChat.todayChatRevenue) + parseFloat(todayCall.todayCallRevenue),
+   todayRevenue:
+  parseFloat(todayChat.todayChatRevenue) +
+  parseFloat(todayCall.todayCallRevenue) +
+  parseFloat(todayGiftStats.todayGiftRevenue),
+    // todayRevenue:     parseFloat(todayChat.todayChatRevenue) + parseFloat(todayCall.todayCallRevenue),
     adminIncome,
     todayAdminIncome: parseFloat(todayChat.todayChatAdmin) + parseFloat(todayCall.todayCallAdmin),
     chatRevenue:      parseFloat(chatStats.chatRevenue),
@@ -168,6 +191,11 @@ todayVideoMinutes: Number(todayCallStats.todayVideoMinutes),
 
   videoAdminIncome: parseFloat(callStats.videoAdminIncome || 0),
   videoMinutes: Number(callStats.videoMinutes || 0),
+  giftRevenue: parseFloat(giftStats.giftRevenue),
+totalGifts: Number(giftStats.totalGifts),
+
+todayGiftRevenue: parseFloat(todayGiftStats.todayGiftRevenue),
+todayTotalGifts: Number(todayGiftStats.todayTotalGifts),
   };
 };
 
