@@ -10,6 +10,9 @@ const {
 
 const repository = require("./repository");
 const db = require("../../config/db");
+const { setAstrologerOnlineStatus } = require("../../sockets/astrologerHandler");
+
+  const activeCallTimeouts = {};
 
 exports.generateAgoraToken = async (body) => {
   try {
@@ -235,6 +238,7 @@ exports.generateAgoraToken = async (body) => {
 
 
 exports.manualDecline = async (req, res) => {
+
     try {
 
         const io = req.app.get("io");
@@ -275,7 +279,7 @@ exports.manualDecline = async (req, res) => {
         );
 
         // 4. Free astrologer / agent
-        await callModel.updateOnlineStatus(callData.agent_id, 1);
+        await setAstrologerOnlineStatus(io, callData.agent_id, 1);
 
         // 5. Payload
         const payload = {
@@ -292,19 +296,36 @@ exports.manualDecline = async (req, res) => {
             }
         };
 
+        const userRoom = `user:${callData.user_id}`;
+        const astrologerRoom = `astrologer:${callData.agent_id}`;
+
         console.log("Call Declined =>", callData.id);
 
-        // 6. Emit to user
-        io.to(String(callData.user_id)).emit(
-            "call:status_update",
-            payload
-        );
+        // 6. Emit to user room
+        io.to(userRoom).emit("call-declined", {
+            success: true,
+            message: "Astrologer declined the call",
+            call_id: callData.id,
+            user_id: callData.user_id,
+            astrologer_id: callData.agent_id,
+            channel_name: callData.channel_name,
+            status: "decline",
+            disconnect_reason: "Astrologer declined the call"
+        });
+        io.to(userRoom).emit("call:status_update", payload);
 
-        // 7. Emit to agent
-        io.to(String(callData.agent_id)).emit(
-            "call:status_update",
-            payload
-        );
+        // 7. Emit to astrologer room
+        io.to(astrologerRoom).emit("call-declined", {
+            success: true,
+            message: "Astrologer declined the call",
+            call_id: callData.id,
+            user_id: callData.user_id,
+            astrologer_id: callData.agent_id,
+            channel_name: callData.channel_name,
+            status: "decline",
+            disconnect_reason: "Astrologer declined the call"
+        });
+        io.to(astrologerRoom).emit("call:status_update", payload);
 
         // 8. Response
         return res.json({
