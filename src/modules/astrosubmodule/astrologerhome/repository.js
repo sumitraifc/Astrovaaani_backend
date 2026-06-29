@@ -77,7 +77,7 @@ exports.getHome = async (astrologerId) => {
     SELECT COALESCE(SUM(amount),0) total
     FROM call_history
     WHERE agent_id = ?
-    AND status = 'completed'
+    AND status IN ('answered','hangup','disconnect')
     AND created_at >= ?
   `, [astrologerId, startOfMonth]);
 
@@ -89,9 +89,20 @@ exports.getHome = async (astrologerId) => {
     AND created_at >= ?
   `, [astrologerId, startOfMonth]);
 
+  const [thisMonthGift] = await db.query(`
+  SELECT COALESCE(SUM(amount),0) total
+  FROM live_gifts
+  WHERE astrologer_id = ?
+  AND created_at >= ?
+`, [astrologerId, startOfMonth]);
+
+  // const thisMonthEarning =
+  //   Number(thisMonth[0].total) +
+  //   Number(thisMonthChat[0].total);
   const thisMonthEarning =
-    Number(thisMonth[0].total) +
-    Number(thisMonthChat[0].total);
+  Number(thisMonth[0].total) +
+  Number(thisMonthChat[0].total) +
+  Number(thisMonthGift[0].total);
 
   // =========================
   // LAST MONTH EARNING
@@ -101,7 +112,7 @@ exports.getHome = async (astrologerId) => {
     SELECT COALESCE(SUM(amount),0) total
     FROM call_history
     WHERE agent_id = ?
-    AND status = 'completed'
+    AND status IN ('answered','hangup','disconnect')
     AND created_at BETWEEN ? AND ?
   `, [
     astrologerId,
@@ -121,10 +132,24 @@ exports.getHome = async (astrologerId) => {
     endOfLastMonth
   ]);
 
-  const lastMonthEarning =
-    Number(lastMonth[0].total) +
-    Number(lastMonthChat[0].total);
+  const [lastMonthGift] = await db.query(`
+  SELECT COALESCE(SUM(amount),0) total
+  FROM live_gifts
+  WHERE astrologer_id = ?
+  AND created_at BETWEEN ? AND ?
+`, [
+  astrologerId,
+  startOfLastMonth,
+  endOfLastMonth
+]);
+  // const lastMonthEarning =
+  //   Number(lastMonth[0].total) +
+  //   Number(lastMonthChat[0].total);
 
+  const lastMonthEarning =
+  Number(lastMonth[0].total) +
+  Number(lastMonthChat[0].total) +
+  Number(lastMonthGift[0].total);
   // =========================
   // THIS WEEK EARNING
   // =========================
@@ -133,7 +158,7 @@ exports.getHome = async (astrologerId) => {
     SELECT COALESCE(SUM(amount),0) total
     FROM call_history
     WHERE agent_id = ?
-    AND status = 'completed'
+   AND status IN ('answered','hangup','disconnect')
     AND created_at >= ?
   `, [astrologerId, startOfWeek]);
 
@@ -145,9 +170,21 @@ exports.getHome = async (astrologerId) => {
     AND created_at >= ?
   `, [astrologerId, startOfWeek]);
 
+  const [weekGift] = await db.query(`
+  SELECT COALESCE(SUM(amount),0) total
+  FROM live_gifts
+  WHERE astrologer_id = ?
+  AND created_at >= ?
+`, [astrologerId, startOfWeek]);
+
+  // const thisWeekEarning =
+  //   Number(week[0].total) +
+  //   Number(weekChat[0].total);
+
   const thisWeekEarning =
-    Number(week[0].total) +
-    Number(weekChat[0].total);
+  Number(week[0].total) +
+  Number(weekChat[0].total) +
+  Number(weekGift[0].total);
 
   // =========================
   // LAST WEEK EARNING
@@ -157,7 +194,7 @@ exports.getHome = async (astrologerId) => {
     SELECT COALESCE(SUM(amount),0) total
     FROM call_history
     WHERE agent_id = ?
-    AND status = 'completed'
+    AND status IN ('answered','hangup','disconnect')
     AND created_at BETWEEN ? AND ?
   `, [
     astrologerId,
@@ -177,10 +214,25 @@ exports.getHome = async (astrologerId) => {
     endOfLastWeek
   ]);
 
-  const lastWeekEarning =
-    Number(lastWeek[0].total) +
-    Number(lastWeekChat[0].total);
+  const [lastWeekGift] = await db.query(`
+  SELECT COALESCE(SUM(amount),0) total
+  FROM live_gifts
+  WHERE astrologer_id = ?
+  AND created_at BETWEEN ? AND ?
+`, [
+  astrologerId,
+  startOfLastWeek,
+  endOfLastWeek
+]);
 
+  // const lastWeekEarning =
+  //   Number(lastWeek[0].total) +
+  //   Number(lastWeekChat[0].total);
+
+  const lastWeekEarning =
+  Number(lastWeek[0].total) +
+  Number(lastWeekChat[0].total) +
+  Number(lastWeekGift[0].total);
   // =========================
   // WITHDRAWALS
   // =========================

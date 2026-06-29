@@ -167,16 +167,25 @@ exports.manualDecline = async (req, res) => {
             });
         }
 
-        await db.query(
-            `UPDATE call_history
-             SET
-                status='declined',
-                end_time=NOW(),
-                updated_at=NOW()
-             WHERE channel_name=?`,
-            [channel_name]
-        );
-
+        // await db.query(
+        //     `UPDATE call_history
+        //      SET
+        //         status='declined',
+        //         end_time=NOW(),
+        //         updated_at=NOW()
+        //      WHERE channel_name=?`,
+        //     [channel_name]
+        // );
+await db.query(
+    `UPDATE call_history
+     SET
+        status='decline',
+        disconnect_reason='Astrologer declined the call',
+        end_time=NOW()
+        
+     WHERE channel_name=?`,
+    [channel_name]
+);
         const payload = {
             success: true,
             message: "Call declined",
@@ -186,7 +195,8 @@ exports.manualDecline = async (req, res) => {
                 caller_id: callData.user_id,
                 agent_id: callData.agent_id,
                 call_type: callData.call_type,
-                status: "declined"
+                status: "decline",
+                disconnect_reason: "Astrologer disconnected the call"
             }
         };
 
