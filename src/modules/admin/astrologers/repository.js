@@ -135,15 +135,47 @@ exports.getById = async (id) => {
     }
   });
 
+  // const [sessions] = await pool.query(`
+  //   SELECT cc.id, 'chat' AS type, u.name AS user_name,
+  //     cc.duration, cc.amount, cc.status, cc.user_rating, cc.created_at
+  //   FROM chat_conversations cc
+  //   JOIN users u ON u.id = cc.user_id
+  //   WHERE cc.astrologer_id = ?
+  //   ORDER BY cc.created_at DESC
+  //   LIMIT 20
+  // `, [id]);
   const [sessions] = await pool.query(`
-    SELECT cc.id, 'chat' AS type, u.name AS user_name,
-      cc.duration, cc.amount, cc.status, cc.user_rating, cc.created_at
-    FROM chat_conversations cc
-    JOIN users u ON u.id = cc.user_id
-    WHERE cc.astrologer_id = ?
-    ORDER BY cc.created_at DESC
-    LIMIT 20
-  `, [id]);
+  SELECT 
+    ch.id,
+    'call' AS type,
+    u.name AS user_name,
+    ch.duration,
+    ch.amount,
+    ch.status,
+    ch.user_rating,
+    ch.created_at
+  FROM call_history ch
+  JOIN users u ON u.id = ch.user_id
+  WHERE ch.agent_id = ?
+
+  UNION ALL
+
+  SELECT 
+    cc.id,
+    'chat' AS type,
+    u.name AS user_name,
+    cc.duration,
+    cc.amount,
+    cc.status,
+    cc.user_rating,
+    cc.created_at
+  FROM chat_conversations cc
+  JOIN users u ON u.id = cc.user_id
+  WHERE cc.astrologer_id = ?
+
+  ORDER BY created_at DESC
+  LIMIT 20
+`, [id, id]);
 
   const [txns] = await pool.query(`
     SELECT id, type, amount, balance_before, balance_after,
