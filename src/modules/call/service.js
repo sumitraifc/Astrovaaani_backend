@@ -140,12 +140,104 @@ exports.generateAgoraToken = async (body) => {
   }
 };
 
-exports.manualDecline = async (req, res) => {
+// exports.manualDecline = async (req, res) => {
+  
 
+//     try {
+
+//         const io = req.app.get("io");
+
+//         const { channel_name } = req.body;
+
+//         if (!channel_name) {
+//             return res.status(400).json({
+//                 success: false,
+//                 message: "channel_name is required"
+//             });
+//         }
+
+//         const callData =
+//             await repository.getCallByChannel(
+//                 channel_name
+//             );
+
+//         if (!callData) {
+//             return res.status(404).json({
+//                 success: false,
+//                 message: "Call not found"
+//             });
+//         }
+
+//         // await db.query(
+//         //     `UPDATE call_history
+//         //      SET
+//         //         status='declined',
+//         //         end_time=NOW(),
+//         //         updated_at=NOW()
+//         //      WHERE channel_name=?`,
+//         //     [channel_name]
+//         // );
+// await db.query(
+//     `UPDATE call_history
+//      SET
+//         status='decline',
+//         disconnect_reason='Astrologer declined the call',
+//         end_time=NOW()
+        
+//      WHERE channel_name=?`,
+//     [channel_name]
+// );
+//         const payload = {
+//             success: true,
+//             message: "Call declined",
+//             data: {
+//                 call_id: callData.id,
+//                 channel_name: callData.channel_name,
+//                 caller_id: callData.user_id,
+//                 agent_id: callData.agent_id,
+//                 call_type: callData.call_type,
+//                 status: "decline",
+//                 disconnect_reason: "Astrologer disconnected the call"
+//             }
+//         };
+// console.log("IO =>", io);
+// console.log("Call Data =>", callData);
+//         io.to(String(callData.user_id))
+//             .emit(
+//                 "call:status_update",
+//                 payload
+//             );
+
+//         io.to(String(callData.agent_id))
+//             .emit(
+//                 "call:status_update",
+//                 payload
+//             );
+
+//         return res.json({
+//             success: true,
+//             message: "Call declined successfully",
+//             data: payload.data
+//         });
+
+//     } catch (error) {
+
+//         console.log(error);
+
+//         return res.status(500).json({
+//             success: false,
+//             message: error.message
+//         });
+
+//     }
+
+// };
+
+
+exports.manualDecline = async (req, res) => {
     try {
 
         const io = req.app.get("io");
-
         const { channel_name } = req.body;
 
         if (!channel_name) {
@@ -155,10 +247,8 @@ exports.manualDecline = async (req, res) => {
             });
         }
 
-        const callData =
-            await repository.getCallByChannel(
-                channel_name
-            );
+        // 1. Get call data
+        const callData = await repository.getCallByChannel(channel_name);
 
         if (!callData) {
             return res.status(404).json({
@@ -167,25 +257,27 @@ exports.manualDecline = async (req, res) => {
             });
         }
 
-        // await db.query(
-        //     `UPDATE call_history
-        //      SET
-        //         status='declined',
-        //         end_time=NOW(),
-        //         updated_at=NOW()
-        //      WHERE channel_name=?`,
-        //     [channel_name]
-        // );
-await db.query(
-    `UPDATE call_history
-     SET
-        status='decline',
-        disconnect_reason='Astrologer declined the call',
-        end_time=NOW()
-        
-     WHERE channel_name=?`,
-    [channel_name]
-);
+        // 2. Clear timeout safely
+        if (activeCallTimeouts?.[callData.id]) {
+            clearTimeout(activeCallTimeouts[callData.id]);
+            delete activeCallTimeouts[callData.id];
+        }
+
+        // 3. Update call history
+        await db.query(
+            `UPDATE call_history
+             SET
+                status = 'decline',
+                disconnect_reason = 'Astrologer declined the call',
+                end_time = UNIX_TIMESTAMP()
+             WHERE channel_name = ?`,
+            [channel_name]
+        );
+
+        // 4. Free astrologer / agent
+        await callModel.updateOnlineStatus(callData.agent_id, 1);
+
+        // 5. Payload
         const payload = {
             success: true,
             message: "Call declined",
@@ -196,25 +288,25 @@ await db.query(
                 agent_id: callData.agent_id,
                 call_type: callData.call_type,
                 status: "decline",
-                disconnect_reason: "Astrologer disconnected the call"
+                disconnect_reason: "Astrologer declined the call"
             }
         };
-        
-console.log("IO =>", io);
-console.log("Call Data =>", callData);
 
-        io.to(String(callData.user_id))
-            .emit(
-                "call:status_update",
-                payload
-            );
+        console.log("Call Declined =>", callData.id);
 
-        io.to(String(callData.agent_id))
-            .emit(
-                "call:status_update",
-                payload
-            );
+        // 6. Emit to user
+        io.to(String(callData.user_id)).emit(
+            "call:status_update",
+            payload
+        );
 
+        // 7. Emit to agent
+        io.to(String(callData.agent_id)).emit(
+            "call:status_update",
+            payload
+        );
+
+        // 8. Response
         return res.json({
             success: true,
             message: "Call declined successfully",
@@ -223,13 +315,11 @@ console.log("Call Data =>", callData);
 
     } catch (error) {
 
-        console.log(error);
+        console.log("manualDecline Error =>", error);
 
         return res.status(500).json({
             success: false,
-            message: error.message
+            message: error.message || "Server error"
         });
-
     }
-
 };
