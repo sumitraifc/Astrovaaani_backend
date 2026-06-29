@@ -24,6 +24,9 @@ services:
     environment:
       MYSQL_ROOT_PASSWORD: root
       MYSQL_DATABASE: astrovani
+      TZ: Asia/Kolkata
+      MYSQL_ROOT_HOST: "%"
+    command: --default-time-zone='+05:30'
     volumes:
       - mysql_data:/var/lib/mysql
     networks:
