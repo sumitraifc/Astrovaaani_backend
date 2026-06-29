@@ -199,6 +199,9 @@ await db.query(
                 disconnect_reason: "Astrologer disconnected the call"
             }
         };
+        
+console.log("IO =>", io);
+console.log("Call Data =>", callData);
 
         io.to(String(callData.user_id))
             .emit(
