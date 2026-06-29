@@ -83,16 +83,23 @@ const [[callStats]] = await pool.query(`
 `);
 const [[giftStats]] = await pool.query(`
   SELECT
-    COALESCE(SUM(amount), 0) AS giftRevenue,
-    COUNT(*) AS totalGifts
-  FROM live_gifts
+    COALESCE(SUM(g.amount), 0) AS giftRevenue,
+    COUNT(*) AS totalGifts,
+    COALESCE(SUM(g.amount * a.commission_percent / 100), 0) AS giftAdminIncome
+  FROM live_gifts g
+  JOIN astrologers a
+    ON a.id = g.astrologer_id
 `);
+
 const [[todayGiftStats]] = await pool.query(`
   SELECT
-    COALESCE(SUM(amount), 0) AS todayGiftRevenue,
-    COUNT(*) AS todayTotalGifts
-  FROM live_gifts
-  WHERE DATE(created_at) = CURDATE()
+    COALESCE(SUM(g.amount), 0) AS todayGiftRevenue,
+    COUNT(*) AS todayTotalGifts,
+    COALESCE(SUM(g.amount * a.commission_percent / 100), 0) AS todayGiftAdminIncome
+  FROM live_gifts g
+  JOIN astrologers a
+    ON a.id = g.astrologer_id
+  WHERE DATE(g.created_at) = CURDATE()
 `);
 
   // const totalRevenue = parseFloat(chatStats.chatRevenue) + parseFloat(callStats.callRevenue);
@@ -100,7 +107,12 @@ const [[todayGiftStats]] = await pool.query(`
   parseFloat(chatStats.chatRevenue) +
   parseFloat(callStats.callRevenue) +
   parseFloat(giftStats.giftRevenue);
-  const adminIncome  = parseFloat(chatStats.chatAdminIncome) + parseFloat(callStats.callAdminIncome);
+  // const adminIncome  = parseFloat(chatStats.chatAdminIncome) + parseFloat(callStats.callAdminIncome);
+
+  const adminIncome =
+  parseFloat(chatStats.chatAdminIncome) +
+  parseFloat(callStats.callAdminIncome) +
+  parseFloat(giftStats.giftAdminIncome);
 
   const [[todayChat]] = await pool.query(`
     SELECT 
@@ -159,7 +171,12 @@ const [[todayCallStats]] = await pool.query(`
   parseFloat(todayGiftStats.todayGiftRevenue),
     // todayRevenue:     parseFloat(todayChat.todayChatRevenue) + parseFloat(todayCall.todayCallRevenue),
     adminIncome,
-    todayAdminIncome: parseFloat(todayChat.todayChatAdmin) + parseFloat(todayCall.todayCallAdmin),
+    // todayAdminIncome: parseFloat(todayChat.todayChatAdmin) + parseFloat(todayCall.todayCallAdmin),
+   todayAdminIncome:
+  parseFloat(todayChat.todayChatAdmin) +
+  parseFloat(todayCall.todayCallAdmin) +
+  parseFloat(todayGiftStats.todayGiftAdminIncome),
+
     chatRevenue:      parseFloat(chatStats.chatRevenue),
     chatAdminIncome:  parseFloat(chatStats.chatAdminIncome),
     totalChats:       Number(chatStats.totalChats),
@@ -196,6 +213,9 @@ totalGifts: Number(giftStats.totalGifts),
 
 todayGiftRevenue: parseFloat(todayGiftStats.todayGiftRevenue),
 todayTotalGifts: Number(todayGiftStats.todayTotalGifts),
+giftAdminIncome: parseFloat(giftStats.giftAdminIncome || 0),
+
+todayGiftAdminIncome: parseFloat(todayGiftStats.todayGiftAdminIncome || 0),
   };
 };
 
@@ -226,6 +246,27 @@ exports.getRevenueChart = async () => {
     ORDER BY year, monthNum
   `);
 
+  const [giftRows] = await pool.query(`
+  SELECT
+    DATE_FORMAT(lg.created_at, '%b') AS month,
+    MONTH(lg.created_at) AS monthNum,
+    YEAR(lg.created_at) AS year,
+
+    COALESCE(SUM(lg.amount), 0) AS giftTotal,
+
+    COALESCE(
+      SUM(lg.amount * a.commission_percent / 100),
+      0
+    ) AS giftAdmin
+
+  FROM live_gifts lg
+  JOIN astrologers a ON a.id = lg.astrologer_id
+
+  WHERE lg.created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+
+  GROUP BY year, monthNum, month
+  ORDER BY year, monthNum
+`);
   // Merge by month+year
   const map = {};
   chatRows.forEach(r => {
@@ -241,6 +282,20 @@ exports.getRevenueChart = async () => {
       map[key] = { month: r.month, total: parseFloat(r.callTotal), admin: parseFloat(r.callAdmin) };
     }
   });
+  giftRows.forEach(r => {
+  const key = `${r.year}-${r.monthNum}`;
+
+  if (map[key]) {
+    map[key].total += parseFloat(r.giftTotal);
+    map[key].admin += parseFloat(r.giftAdmin);
+  } else {
+    map[key] = {
+      month: r.month,
+      total: parseFloat(r.giftTotal),
+      admin: parseFloat(r.giftAdmin)
+    };
+  }
+});
 
   return Object.values(map);
 };
@@ -272,8 +327,30 @@ exports.getRecentSessions = async () => {
      WHERE ch.status IN ('answered', 'hangup', 'disconnect')
     ORDER BY ch.created_at DESC LIMIT 5
   `);
+const [gifts] = await pool.query(`
+  SELECT
+    u.name AS user,
+    a.name AS astro,
+    'Gift' AS type,
+    '-' AS duration,
+    lg.amount,
 
-  return [...chats, ...calls]
+    ROUND(lg.amount * a.commission_percent / 100) AS adminCut,
+
+    lg.created_at AS time
+
+  FROM live_gifts lg
+
+  JOIN users u
+    ON u.id = lg.user_id
+
+  JOIN astrologers a
+    ON a.id = lg.astrologer_id
+
+  ORDER BY lg.created_at DESC
+  LIMIT 5
+`);
+  return [...chats, ...calls,...gifts]
     .sort((a, b) => new Date(b.time) - new Date(a.time))
     .slice(0, 10);
 };
