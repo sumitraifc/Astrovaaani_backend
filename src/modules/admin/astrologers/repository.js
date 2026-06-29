@@ -23,10 +23,21 @@ exports.getList = async ({ search, status,online_status, page, limit }) => {
     } else if (status === 'resume') {
       // Astrologer step 1-4 fill kar raha hai (incomplete registration, approval_status='resume')
       where += " AND a.approval_status = 'resume' AND a.registration_completed = 0";
-    } else {
-      where += ' AND a.approval_status = ?';
-      params.push(status);
-    }
+    } 
+    // else {
+    //   where += ' AND a.approval_status = ?';
+    //   params.push(status);
+    // }
+    else {
+  where += ' AND a.approval_status = ?';
+
+  // pending special case
+  if (status === 'pending') {
+    where += ' AND a.resubmitted = 0';
+  }
+
+  params.push(status);
+}
   }
 if (online_status) {
   if (online_status === "online") {
