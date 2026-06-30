@@ -145,6 +145,10 @@ module.exports = (io, socket) => {
       /* =========================================
          🔥 ROOM EMIT
       ========================================= */
+      if (response?.data?.profile_image) {
+  response.data.profile_image =
+    `${process.env.BASE_URL}/uploads/${response.astrologer.profile_image}`;
+}
       io.to(room).emit(
         "astrologer_chat_list_response",
         response
