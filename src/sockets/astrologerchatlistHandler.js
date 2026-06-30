@@ -131,10 +131,19 @@ module.exports = (io, socket) => {
 
       console.log("📊 Total Unique Users:", rows.length);
 
+const formattedRows = rows.map((row) => ({
+  ...row,
+  profile_image: row.profile_image
+    ? `${process.env.BASE_URL}/uploads/${row.profile_image}`
+    : null,
+}));
+
       const response = {
         success: true,
-        total: rows.length,
-        data: rows
+        total: formattedRows.length,
+        // total: rows.length,
+        data: formattedRows
+        // data: rows
       };
 
       /* =========================================
@@ -145,10 +154,7 @@ module.exports = (io, socket) => {
       /* =========================================
          🔥 ROOM EMIT
       ========================================= */
-      if (response?.data?.profile_image) {
-  response.data.profile_image =
-    `${process.env.BASE_URL}/uploads/${response.astrologer.profile_image}`;
-}
+    
       io.to(room).emit(
         "astrologer_chat_list_response",
         response
