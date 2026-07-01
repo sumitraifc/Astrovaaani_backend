@@ -7,7 +7,7 @@ const POLICY_TYPES = {
   community_guidelines:     'Community Guidelines',
   disclaimer:               'Disclaimer',
   account_deletion_policy:  'Account Deletion Policy',
-  contact_us:               'Contact Us',
+  contact:               'Contact ',
   maintenance:              'Maintenance Mode',
 };
 

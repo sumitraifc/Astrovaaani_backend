@@ -8,6 +8,7 @@ exports.getConfig = async () => {
   const community_guidelines = await repo.findByType("community_guidelines");
   const refund_cancellation = await repo.findByType("refund_cancellation");
   const contact = await repo.findByType("contact_us");
+  const contact1 = await repo.findByType("contact");
   const faqData = await repo.findByType("faq");
 
   const support = await repo.getSupportLinks();
@@ -20,6 +21,7 @@ exports.getConfig = async () => {
     refund_cancellation: refund_cancellation || null,
     terms_conditions: terms || null,
     contact_us: contact || null,
+    contact: contact1 || null,
 
     faq: faqData
       ? {
