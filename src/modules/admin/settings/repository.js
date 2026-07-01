@@ -27,16 +27,17 @@ exports.upsert = async (settings) => {
     const status  = typeof value === 'object' && value.status ? value.status : 'active';
     const title   = POLICY_TYPES[type] || type;
 
-    await pool.query(
-      `INSERT INTO app_contents (type, title, content, target, status)
-       VALUES (?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-         content = VALUES(content),
-         target  = VALUES(target),
-         status  = VALUES(status),
-         title   = VALUES(title),
-         updated_at = NOW()`,
-      [type, title, content, target, status]
-    );
+    const [[existing]] = await pool.query('SELECT id FROM app_contents WHERE type = ?', [type]);
+    if (existing) {
+      await pool.query(
+        'UPDATE app_contents SET content=?, target=?, status=?, title=?, updated_at=NOW() WHERE id=?',
+        [content, target, status, title, existing.id]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO app_contents (type, title, content, target, status) VALUES (?, ?, ?, ?, ?)',
+        [type, title, content, target, status]
+      );
+    }
   }
 };

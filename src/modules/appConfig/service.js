@@ -2,7 +2,11 @@ const repo = require("./repository");
 
 exports.getConfig = async () => {
   const privacy = await repo.findByType("privacy_policy");
+  const account_deletion_policy = await repo.findByType("account_deletion_policy");
+  const disclaimer = await repo.findByType("disclaimer");
   const terms = await repo.findByType("terms_conditions");
+  const community_guidelines = await repo.findByType("community_guidelines");
+  const refund_cancellation = await repo.findByType("refund_cancellation");
   const contact = await repo.findByType("contact_us");
   const faqData = await repo.findByType("faq");
 
@@ -10,6 +14,10 @@ exports.getConfig = async () => {
 
   return {
     privacy_policy: privacy || null,
+    account_deletion_policy: account_deletion_policy || null,
+    disclaimer: disclaimer || null,
+    community_guidelines: community_guidelines || null,
+    refund_cancellation: refund_cancellation || null,
     terms_conditions: terms || null,
     contact_us: contact || null,
 
