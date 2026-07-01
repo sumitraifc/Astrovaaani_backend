@@ -3,8 +3,8 @@ const path = require("path");
 const fs = require("fs");
 
 // upload folder path
-// const uploadPath = "/www/wwwroot/Astrowanibackend/uploads";
-const uploadPath = "/var/www/vhosts/astrovaaani.com/root.astrovaaani.com/uploads";
+const uploadPath = "/www/wwwroot/Astrowanibackend/uploads";
+// const uploadPath = "/var/www/vhosts/astrovaaani.com/root.astrovaaani.com/uploads";
 
 // create folder if not exists
 if (!fs.existsSync(uploadPath)) {
