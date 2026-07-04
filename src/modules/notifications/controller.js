@@ -17,22 +17,20 @@ const service = require("./service");
 
 exports.getNotifications = async (req, res) => {
   try {
-
     const { role, user_id, astrologer_id } = req.body;
+    const { page, limit } = req.query;
 
     const result = await service.getNotifications(
-      role === "user" ? user_id : null,
-      role === "astrologer" ? astrologer_id : null,
-      role
+      role === 'user'       ? user_id       : null,
+      role === 'astrologer' ? astrologer_id : null,
+      role,
+      page,
+      limit
     );
 
     res.json(result);
-
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: err.message
-    });
+    res.status(500).json({ success: false, message: err.message });
   }
 };
 

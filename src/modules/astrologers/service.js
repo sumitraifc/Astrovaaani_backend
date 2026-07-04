@@ -16,14 +16,9 @@ exports.createAstrologer = async (data) => {
   };
 };
 
-exports.getAstrologers = async () => {
-
-  const astrologers = await repo.getAll();
-
-  return {
-    success: true,
-    astrologers
-  };
+exports.getAstrologers = async (page, limit) => {
+  const result = await repo.getAll(page, limit);
+  return { success: true, ...result };
 };
 
 // exports.getAstrologerById = async (id) => {

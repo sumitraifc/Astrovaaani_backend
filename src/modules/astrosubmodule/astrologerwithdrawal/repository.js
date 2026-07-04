@@ -48,12 +48,19 @@ exports.createWithdraw = async (data) => {
 /**
  * withdraw history
  */
-exports.getWithdrawHistory = async (id) => {
-  const [rows] = await pool.query(
-    `SELECT * FROM astrologer_withdrawals WHERE astrologer_id = ? ORDER BY id DESC`,
-    [id]
+exports.getWithdrawHistory = async (id, page, limit) => {
+  page  = parseInt(page)  || 1;
+  limit = parseInt(limit) || 10;
+  const offset = (page - 1) * limit;
+
+  const [[{ total }]] = await pool.query(
+    `SELECT COUNT(*) AS total FROM astrologer_withdrawals WHERE astrologer_id = ?`, [id]
   );
-  return rows;
+  const [rows] = await pool.query(
+    `SELECT * FROM astrologer_withdrawals WHERE astrologer_id = ? ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [id, limit, offset]
+  );
+  return { total, page, limit, rows };
 };
 
 /**

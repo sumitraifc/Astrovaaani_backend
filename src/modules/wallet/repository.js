@@ -22,45 +22,36 @@ exports.getWallet = async (userId) => {
 //   return rows;
 // };
 
-exports.getTransactions = async (userId, type) => {
+exports.getTransactions = async (userId, type, page, limit) => {
+  page  = parseInt(page)  || 1;
+  limit = parseInt(limit) || 10;
+  const offset = (page - 1) * limit;
 
-  // 1. WALLET BALANCE
   const [walletRows] = await db.query(
     `SELECT balance FROM wallet WHERE user_id = ?`,
     [userId]
   );
-
   const balance = walletRows[0]?.balance || 0;
 
-  // 2. TRANSACTIONS
-  let query = `
-    SELECT 
-      id,
-      user_id,
-      type,
-      amount,
-      reason,
-      status,
-      created_at
-    FROM wallet_transactions
-    WHERE user_id=?
-  `;
-
-  let params = [userId];
+  let where = `WHERE user_id = ?`;
+  const params = [userId];
 
   if (type) {
-    query += ` AND type=?`;
+    where += ` AND type = ?`;
     params.push(type);
   }
 
-  query += ` ORDER BY id DESC`;
+  const [[{ total }]] = await db.query(
+    `SELECT COUNT(*) AS total FROM wallet_transactions ${where}`, params
+  );
 
-  const [transactions] = await db.query(query, params);
+  const [transactions] = await db.query(
+    `SELECT id, user_id, type, amount, reason, status, created_at
+     FROM wallet_transactions ${where} ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  );
 
-  return {
-    balance,
-    transactions
-  };
+  return { balance, total, page, limit, transactions };
 };
 
 exports.updateBalance = async (userId, amount) => {

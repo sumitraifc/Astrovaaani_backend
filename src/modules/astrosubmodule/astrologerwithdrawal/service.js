@@ -127,7 +127,7 @@ exports.requestWithdraw = async (astrologer_id, body) => {
 /**
  * WITHDRAW HISTORY
  */
-exports.getWithdrawHistory = async (astrologer_id) => {
-  const data = await repo.getWithdrawHistory(astrologer_id);
-  return { status: true, data };
+exports.getWithdrawHistory = async (astrologer_id, page, limit) => {
+  const result = await repo.getWithdrawHistory(astrologer_id, page, limit);
+  return { status: true, total: result.total, page: result.page, limit: result.limit, data: result.rows };
 };

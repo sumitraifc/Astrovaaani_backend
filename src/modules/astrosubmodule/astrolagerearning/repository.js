@@ -127,12 +127,10 @@ AND status = 'completed'
    HISTORY
 ========================== */
 
-exports.getHistory = async (
-  astrologerId,
-  type = "all",
-  from,
-  to
-) => {
+exports.getHistory = async (astrologerId, type = "all", from, to, page, limit) => {
+  page  = parseInt(page)  || 1;
+  limit = parseInt(limit) || 10;
+  const offset = (page - 1) * limit;
 
   const history = [];
 
@@ -347,11 +345,10 @@ ${liveFilter.sql}
     });
   }
 
-  history.sort(
-    (a, b) =>
-      new Date(b.date) -
-      new Date(a.date)
-  );
+  history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  return history;
+  const total = history.length;
+  const paginated = history.slice(offset, offset + limit);
+
+  return { total, page, limit, data: paginated };
 };

@@ -43,7 +43,7 @@ exports.requestWithdraw = async (req, res) => {
 
 exports.getWithdrawHistory = async (req, res) => {
   try {
-    const result = await service.getWithdrawHistory(req.user.id);
+    const result = await service.getWithdrawHistory(req.user.id, req.query.page, req.query.limit);
     return res.json(result);
   } catch (err) {
     return res.status(500).json({ status: false, message: err.message });

@@ -46,14 +46,18 @@ exports.create = async (data) => {
   return rows[0];
 };
 
-exports.getAll = async () => {
+exports.getAll = async (page, limit) => {
+  page  = parseInt(page)  || 1;
+  limit = parseInt(limit) || 10;
+  const offset = (page - 1) * limit;
 
-  const [rows] = await db.query(`
-    SELECT * FROM astrologers
-    ORDER BY id DESC
-  `);
+  const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM astrologers`);
+  const [rows] = await db.query(
+    `SELECT * FROM astrologers ORDER BY id DESC LIMIT ? OFFSET ?`,
+    [limit, offset]
+  );
 
-  return rows;
+  return { total, page, limit, data: rows };
 };
 
 

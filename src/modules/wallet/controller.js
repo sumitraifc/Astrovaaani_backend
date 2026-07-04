@@ -15,14 +15,10 @@ exports.getWallet = async (req, res) => {
 
 exports.getTransactions = async (req, res) => {
   try {
-    const result = await service.getTransactions(req.user.id, req.query.type );
-
+    const result = await service.getTransactions(req.user.id, req.query.type, req.query.page, req.query.limit);
     res.json(result);
   } catch (err) {
-    res.status(400).json({
-      success: false,
-      message: err.message
-    });
+    res.status(400).json({ success: false, message: err.message });
   }
 };
 

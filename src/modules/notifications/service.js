@@ -20,13 +20,14 @@ const repo = require("./repository");
 //   };
 // };
 
-exports.getNotifications = async (userId, astrologerId, role) => {
-
-  const rows = await repo.getNotifications(userId, astrologerId, role);
-
+exports.getNotifications = async (userId, astrologerId, role, page, limit) => {
+  const result = await repo.getNotifications(userId, astrologerId, role, page, limit);
   return {
     success: true,
-    notifications: rows
+    total: result.total,
+    page: result.page,
+    limit: result.limit,
+    notifications: result.rows
   };
 };
 

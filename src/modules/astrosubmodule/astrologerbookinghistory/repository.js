@@ -64,7 +64,10 @@ exports.getSummary = async (astrologerId) => {
 
 exports.getHistory = async (astrologerId, query) => {
 
-  const { type, from, to } = query;
+  const { type, from, to, page, limit } = query;
+  const _page   = parseInt(page)  || 1;
+  const _limit  = parseInt(limit) || 10;
+  const offset  = (_page - 1) * _limit;
 
   const history = [];
 
@@ -93,23 +96,12 @@ exports.getHistory = async (astrologerId, query) => {
       ${callFilter.sql}
       ORDER BY c.created_at DESC
     `,
-      [
-        astrologerId,
-        ...callFilter.params
-      ]
+      [astrologerId, ...callFilter.params]
     );
 
     calls.forEach(row => {
-
-      // =========================
-      // STATUS MAPPING
-      // =========================
       let finalStatus = "cancelled";
-
-      if (["answered", "hangup"].includes(row.status)) {
-        finalStatus = "completed";
-      }
-
+      if (["answered", "hangup"].includes(row.status)) finalStatus = "completed";
       history.push({
         id: row.id,
         user_name: row.user_name,
@@ -145,23 +137,12 @@ exports.getHistory = async (astrologerId, query) => {
       ${chatFilter.sql}
       ORDER BY c.created_at DESC
     `,
-      [
-        astrologerId,
-        ...chatFilter.params
-      ]
+      [astrologerId, ...chatFilter.params]
     );
 
     chats.forEach(row => {
-
-      // =========================
-      // STATUS MAPPING
-      // =========================
       let finalStatus = "cancelled";
-
-      if (row.status === "ended") {
-        finalStatus = "completed";
-      }
-
+      if (row.status === "ended") finalStatus = "completed";
       history.push({
         id: row.id,
         user_name: row.user_name,
@@ -175,12 +156,12 @@ exports.getHistory = async (astrologerId, query) => {
     });
   }
 
-  // =========================
-  // FINAL SORT
-  // =========================
   history.sort((a, b) => new Date(b.date) - new Date(a.date));
 
-  return history;
+  const total = history.length;
+  const paginated = history.slice(offset, offset + _limit);
+
+  return { total, page: _page, limit: _limit, data: paginated };
 };
 
 /* =========================

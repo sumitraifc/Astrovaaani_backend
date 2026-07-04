@@ -20,13 +20,11 @@ exports.getWallet = async (userId) => {
 //     transactions
 //   };
 // };
-exports.getTransactions = async (userId, type) => {
-  const transactions = await repo.getTransactions(userId, type);
-
+exports.getTransactions = async (userId, type, page, limit) => {
+  const result = await repo.getTransactions(userId, type, page, limit);
   return {
     success: true,
-    total: transactions.length,
-    data: transactions
+    data: result
   };
 };
 
