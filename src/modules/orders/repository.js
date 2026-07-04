@@ -43,13 +43,18 @@ exports.create = async (data) => {
 //   return rows;
 // };
 
-exports.getAll = async (userId) => {
-  const [rows] = await db.query(
-    `
-    SELECT 
-      o.*,
+exports.getAll = async (userId, page, limit) => {
+  page  = parseInt(page)  || 1;
+  limit = parseInt(limit) || 10;
+  const offset = (page - 1) * limit;
 
-      -- Astrologer basic info
+  const [[{ total }]] = await db.query(
+    `SELECT COUNT(*) AS total FROM orders WHERE user_id = ?`, [userId]
+  );
+
+  const [rows] = await db.query(
+    `SELECT 
+      o.*,
       a.name AS astrologer_name,
       a.profile_image AS astrologer_image,
       a.rating AS astrologer_rating,
@@ -57,30 +62,17 @@ exports.getAll = async (userId) => {
       a.languages AS astrologer_languages,
       a.expertise AS astrologer_expertise,
       a.is_online AS astrologer_is_online,
-
-      -- Favourite flag (TRUE / FALSE)
-      CASE 
-        WHEN f.id IS NOT NULL THEN TRUE 
-        ELSE FALSE 
-      END AS is_favourite
-
+      CASE WHEN f.id IS NOT NULL THEN TRUE ELSE FALSE END AS is_favourite
     FROM orders o
-
-    LEFT JOIN astrologers a 
-      ON a.id = o.astrologer_id
-
-    LEFT JOIN favorites f 
-      ON f.astrologer_id = o.astrologer_id 
-      AND f.user_id = ?
-
+    LEFT JOIN astrologers a ON a.id = o.astrologer_id
+    LEFT JOIN favorites f ON f.astrologer_id = o.astrologer_id AND f.user_id = ?
     WHERE o.user_id = ?
-
     ORDER BY o.id DESC
-    `,
-    [userId, userId]
+    LIMIT ? OFFSET ?`,
+    [userId, userId, limit, offset]
   );
 
-  return rows;
+  return { total, page, limit, rows };
 };
 
 

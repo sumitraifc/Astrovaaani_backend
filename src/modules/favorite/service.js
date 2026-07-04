@@ -33,22 +33,21 @@ exports.addFavorite = async (userId, astrologerId) => {
 //     data: favorites
 //   };
 // };
-exports.getFavorites = async (userId) => {
-  const favorites = await repo.getFavorites(userId);
+exports.getFavorites = async (userId, page, limit) => {
+  const result = await repo.getFavorites(userId, page, limit);
 
-  const data = favorites.map(item => ({
+  const data = result.rows.map(item => ({
     ...item,
-
     profile_image: item.profile_image
       ? `${process.env.BASE_URL}/uploads/${item.profile_image}`
-      : null,
-
-    // is_favourite: true
+      : null
   }));
 
   return {
     success: true,
-    total: data.length,
+    total: result.total,
+    page: result.page,
+    limit: result.limit,
     data
   };
 };

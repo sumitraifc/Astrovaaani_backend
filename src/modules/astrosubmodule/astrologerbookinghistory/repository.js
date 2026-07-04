@@ -161,7 +161,7 @@ exports.getHistory = async (astrologerId, query) => {
   const total = history.length;
   const paginated = history.slice(offset, offset + _limit);
 
-  return { total, page: _page, limit: _limit, data: paginated };
+  return { total, page: _page, limit: _limit, history: paginated };
 };
 
 /* =========================

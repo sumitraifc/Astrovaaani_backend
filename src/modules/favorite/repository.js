@@ -33,12 +33,18 @@ exports.addFavorite = async (userId, astrologerId) => {
 /**
  * GET FAVORITES
  */
-exports.getFavorites = async (userId) => {
-  const [rows] = await db.query(
-    `
-    SELECT
-      f.id,
+exports.getFavorites = async (userId, page, limit) => {
+  page  = parseInt(page)  || 1;
+  limit = parseInt(limit) || 10;
+  const offset = (page - 1) * limit;
 
+  const [[{ total }]] = await db.query(
+    `SELECT COUNT(*) AS total FROM favorites WHERE user_id = ?`, [userId]
+  );
+
+  const [rows] = await db.query(
+    `SELECT
+      f.id,
       a.id AS astrologer_id,
       a.name,
       a.profile_image,
@@ -49,16 +55,15 @@ exports.getFavorites = async (userId) => {
       a.is_online,
       a.languages,
       a.expertise
-
     FROM favorites f
     JOIN astrologers a ON a.id = f.astrologer_id
     WHERE f.user_id = ?
     ORDER BY f.id DESC
-    `,
-    [userId]
+    LIMIT ? OFFSET ?`,
+    [userId, limit, offset]
   );
 
-  return rows;
+  return { total, page, limit, rows };
 };
 
 /**

@@ -25,10 +25,10 @@ exports.createOrder = async (userId, data) => {
 //     orders
 //   };
 // };
-exports.getOrders = async (userId) => {
-  const orders = await repo.getAll(userId);
+exports.getOrders = async (userId, page, limit) => {
+  const result = await repo.getAll(userId, page, limit);
 
-  const formattedOrders = orders.map(order => ({
+  const data = result.rows.map(order => ({
     ...order,
     astrologer_image: order.astrologer_image
       ? `${process.env.BASE_URL}/uploads/${order.astrologer_image}`
@@ -37,7 +37,10 @@ exports.getOrders = async (userId) => {
 
   return {
     success: true,
-    orders: formattedOrders
+    total: result.total,
+    page: result.page,
+    limit: result.limit,
+    data
   };
 };
 
