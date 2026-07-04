@@ -350,5 +350,5 @@ ${liveFilter.sql}
   const total = history.length;
   const paginated = history.slice(offset, offset + limit);
 
-  return { total, page, limit, data: paginated };
+  return { total, page, limit, history: paginated };
 };
