@@ -117,6 +117,28 @@ async function markConversationEnded(conversation_id) {
   return result.affectedRows > 0;
 }
 
+async function restoreAstrologerOnlineIfAllowed(io, astrologer_id) {
+  const [astroRows] = await db.query(
+    `SELECT is_online FROM astrologers WHERE id = ? LIMIT 1`,
+    [astrologer_id]
+  );
+
+  if (!astroRows.length) {
+    return null;
+  }
+
+  const isOnline = Number(astroRows[0].is_online);
+
+  if (isOnline === 0) {
+    console.log(
+      `[STATUS] Astrologer ${astrologer_id} is offline; skipping online restore`
+    );
+    return null;
+  }
+
+  return setAstrologerOnlineStatus(io, astrologer_id, 1);
+}
+
 module.exports = (io, socket) => {
   /**
    * =========================================
@@ -1325,10 +1347,9 @@ socket.on("get_chat_history", async (data, callback) => {
                   );
                   console.log(`[CHAT-END] Order updated for ${conversation_id}: price=${finalAmount}`);
 
-                  await setAstrologerOnlineStatus(
+                  await restoreAstrologerOnlineIfAllowed(
                     io,
-                    conversation.astrologer_id,
-                    1
+                    conversation.astrologer_id
                   );
 
                   console.log(
@@ -1350,6 +1371,7 @@ socket.on("get_chat_history", async (data, callback) => {
                       reason: "low_balance"
                     }
                   });
+
                 } else {
                   console.log(`[CHAT-TIMER] Chat already ended for ${conversation_id}, skipping end flow`);
                 }
@@ -1649,9 +1671,7 @@ io.in("room_" + conversation_id).emit("receive_message", {
       const astrologer_id = convRows[0].astrologer_id;
       const user_id = convRows[0].user_id;
 
-      await setAstrologerOnlineStatus(io, astrologer_id, 1);
-
-      console.log(`[CHAT ENDED] Astrologer ${astrologer_id} -> ONLINE`);
+      await restoreAstrologerOnlineIfAllowed(io, astrologer_id);
 
       const payload = {
         success: true,
@@ -1780,20 +1800,22 @@ io.in("room_" + conversation_id).emit("receive_message", {
 
         console.log(`[DISCONNECT] Astrologer ${astrologer_id} -> OFFLINE`);
       } else if (astrologer_id) {
-        await setAstrologerOnlineStatus(io, astrologer_id, 1);
+        await restoreAstrologerOnlineIfAllowed(io, astrologer_id);
 
-        console.log(`[DISCONNECT] User left, Astrologer ${astrologer_id} -> ONLINE`);
+        console.log(`[DISCONNECT] User left, Astrologer ${astrologer_id} -> ONLINE if allowed`);
       }
 
-      io.to("room_" + conversation_id).emit("chat_ended", {
+      const payload = {
         success: true,
         ended_by: sender_type,
-        conversation_id,
         message:
           sender_type === "astrologer"
             ? "Astrologer disconnected"
-            : "User disconnected"
-      });
+            : "User disconnected",
+        conversation_id
+      };
+
+      io.to("room_" + conversation_id).emit("chat_ended", payload);
 
       if (sender_type === "user") {
         await notifyPush({
