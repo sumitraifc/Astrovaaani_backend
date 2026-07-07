@@ -262,13 +262,20 @@ if (booking_type === "member" && member_id) {
       }
 
       /**
-       * ASTROLOGER BUSY CHECK
+       * ASTROLOGER AVAILABILITY CHECK
        */
-      // if (astroRows[0].chat_status === "busy") {
-      if (Number(astroRows[0].is_online) === 2) {
+      const astrologerStatus = Number(astroRows[0].is_online);
+      if (astrologerStatus === 2) {
         return callback({
           success: false,
           message: "Astrologer is busy"
+        });
+      }
+
+      if (astrologerStatus === 0) {
+        return callback({
+          success: false,
+          message: "Astrologer is offline"
         });
       }
 

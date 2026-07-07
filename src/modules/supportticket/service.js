@@ -67,8 +67,8 @@ exports.getTickets = async (query, auth) => {
         const offset = (page - 1) * limit;
 
         const raised_by = auth.role; // user / astrologer
-        const user_id = auth.user_id || null;
-        const astrologer_id = auth.astrologer_id || null;
+        const user_id = auth.role === 'user' ? auth.id : null;
+        const astrologer_id = auth.role === 'astrologer' ? auth.id : null;
 
         const rows = await repo.getTickets(
             raised_by,
