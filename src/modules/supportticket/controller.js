@@ -1,15 +1,27 @@
-const service = require("./service");
+const service     = require("./service");
+const db          = require("../../config/db");
 
 /**
  * Create Ticket
  */
 exports.createTicket = async (req, res) => {
     try {
-        const auth_id = req.user.id;  // JWT se sirf id lenge
-        const role    = req.body.role; // frontend se aayega: "user" ya "astrologer"
+        const auth_id = req.user.id;
+        const role    = req.body.role;
 
         if (!role || !['user', 'astrologer'].includes(role)) {
             return res.status(400).json({ success: false, message: 'role required: user or astrologer' });
+        }
+
+        // DB se name, phone/mobile, email fetch karo
+        let user_name = '', user_phone = '', user_email = '';
+
+        if (role === 'user') {
+            const [rows] = await db.query('SELECT name, mobile, email FROM users WHERE id=? LIMIT 1', [auth_id]);
+            if (rows[0]) { user_name = rows[0].name || ''; user_phone = rows[0].mobile || ''; user_email = rows[0].email || ''; }
+        } else {
+            const [rows] = await db.query('SELECT name, phone, email FROM astrologers WHERE id=? LIMIT 1', [auth_id]);
+            if (rows[0]) { user_name = rows[0].name || ''; user_phone = rows[0].phone || ''; user_email = rows[0].email || ''; }
         }
 
         const data = {
@@ -17,10 +29,11 @@ exports.createTicket = async (req, res) => {
             raised_by:     role,
             user_id:       role === 'user'       ? auth_id : null,
             astrologer_id: role === 'astrologer' ? auth_id : null,
-            user_name:     req.body.user_name  || '',
-            user_phone:    req.body.user_phone || '',
-            user_email:    req.body.user_email || '',
-            image:         req.file ? `/uploads/support/${req.file.filename}` : null
+            user_name,
+            user_phone,
+            user_email,
+            image: req.files?.image?.[0] ? `/uploads/support/${req.files.image[0].filename}` : 
+                   req.files?.file?.[0]  ? `/uploads/support/${req.files.file[0].filename}`  : null
         };
 
         const result = await service.createTicket(data);

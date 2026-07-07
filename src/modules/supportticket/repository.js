@@ -205,30 +205,41 @@ exports.getTickets = async (
     try {
 
         let sql = `
-            SELECT *
-            FROM support_tickets
-            WHERE raised_by=?
+            SELECT
+                t.*,
+                (
+                    SELECT COUNT(*)
+                    FROM support_ticket_attachments a
+                    WHERE a.ticket_id = t.id
+                ) AS image_count,
+                (
+                    SELECT JSON_ARRAYAGG(a.file_url)
+                    FROM support_ticket_attachments a
+                    WHERE a.ticket_id = t.id
+                ) AS images
+            FROM support_tickets t
+            WHERE t.raised_by=?
         `;
 
         const params = [raised_by];
 
         if (raised_by === "user") {
-            sql += ` AND user_id=?`;
+            sql += ` AND t.user_id=?`;
             params.push(user_id);
         }
 
         if (raised_by === "astrologer") {
-            sql += ` AND astrologer_id=?`;
+            sql += ` AND t.astrologer_id=?`;
             params.push(astrologer_id);
         }
 
         if (status) {
-            sql += ` AND status=?`;
+            sql += ` AND t.status=?`;
             params.push(status);
         }
 
         sql += `
-            ORDER BY id DESC
+            ORDER BY t.id DESC
             LIMIT ?
             OFFSET ?
         `;

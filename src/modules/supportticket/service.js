@@ -66,9 +66,9 @@ exports.getTickets = async (query, auth) => {
         const limit = Number(query.limit) || 10;
         const offset = (page - 1) * limit;
 
-        const raised_by = auth.role;
-        const user_id = auth.role === 'user' ? auth.id : null;
-        const astrologer_id = auth.role === 'astrologer' ? auth.id : null;
+        const raised_by = auth.role;  // query se aaya: ?role=user ya ?role=astrologer
+        const user_id       = raised_by === 'user'       ? auth.id : null;
+        const astrologer_id = raised_by === 'astrologer' ? auth.id : null;
 
         const rows = await repo.getTickets(
             raised_by,
@@ -89,7 +89,11 @@ exports.getTickets = async (query, auth) => {
         return {
             success: true,
             message: "Ticket list fetched",
-            data: rows,
+            data: rows.map(row => ({
+                ...row,
+                images: row.images ? JSON.parse(row.images).map(url => `${BASE_URL}${url}`) : [],
+                image_count: Number(row.image_count)
+            })),
             pagination: {
                 total: count,
                 page,
