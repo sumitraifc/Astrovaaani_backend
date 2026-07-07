@@ -34,15 +34,17 @@ exports.createTicket = async (data) => {
             message:     data.description
         });
 
-        // Image attachment (if uploaded)
-        if (data.image) {
-            await repo.saveAttachment({
-                message_id: msgResult.insertId,
-                ticket_id:  ticketDbId,
-                file_url:   data.image,
-                file_name:  data.image.split('/').pop(),
-                file_type:  'image'
-            });
+        // Image attachments
+        if (data.images && data.images.length > 0) {
+            for (const img of data.images) {
+                await repo.saveAttachment({
+                    message_id: msgResult.insertId,
+                    ticket_id:  ticketDbId,
+                    file_url:   img,
+                    file_name:  img.split('/').pop(),
+                    file_type:  'image'
+                });
+            }
         }
 
         return {

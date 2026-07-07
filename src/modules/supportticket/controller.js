@@ -32,8 +32,9 @@ exports.createTicket = async (req, res) => {
             user_name,
             user_phone,
             user_email,
-            image: req.files?.image?.[0] ? `/uploads/support/${req.files.image[0].filename}` : 
-                   req.files?.file?.[0]  ? `/uploads/support/${req.files.file[0].filename}`  : null
+            images: req.files && req.files.length > 0
+                ? req.files.map(f => `/uploads/support/${f.filename}`)
+                : []
         };
 
         const result = await service.createTicket(data);
