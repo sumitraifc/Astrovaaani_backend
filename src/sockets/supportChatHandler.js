@@ -1,7 +1,4 @@
-const db     = require("../config/db");
-const multer = require("multer");
-const path   = require("path");
-const fs     = require("fs");
+const db = require("../config/db");
 
 /**
  * =========================================
@@ -10,14 +7,6 @@ const fs     = require("fs");
  * =========================================
  */
 const activeRooms = {};
-
-/**
- * =========================================
- * UPLOAD PATH
- * =========================================
- */
-const uploadPath = path.join(process.cwd(), "uploads", "support");
-if (!fs.existsSync(uploadPath)) fs.mkdirSync(uploadPath, { recursive: true });
 
 /**
  * =========================================
@@ -87,7 +76,7 @@ module.exports = (io, socket) => {
                         SELECT JSON_ARRAYAGG(
                             JSON_OBJECT(
                                 'id',        a.id,
-                                'file_url',  CONCAT(?, a.file_url),
+                                'file_url',  a.file_url,
                                 'file_name', a.file_name,
                                 'file_type', a.file_type
                             )
@@ -99,7 +88,7 @@ module.exports = (io, socket) => {
                 WHERE m.ticket_id = ?
                 ORDER BY m.id ASC
                 LIMIT 50
-            `, [process.env.BASE_URL || "", ticket_id]);
+            `, [ticket_id]);
 
             const formatted = messages.map(m => ({
                 ...m,
@@ -191,8 +180,7 @@ module.exports = (io, socket) => {
     // on:   support_receive_message  (broadcast)
     // on:   ack callback
     // payload: { ticket_id, sender_type, sender_name, file_url, file_name, file_type }
-    // file_url: frontend already uploaded via REST /api/tickets/:id/reply
-    // OR pass base64 — but recommended: use REST upload then send url here
+    // file_url: REST API /chat/upload-file se upload karo pehle, phir url yahan bhejo
     // =========================================
     socket.on("support_send_image", async (data, callback) => {
         try {
@@ -246,7 +234,7 @@ module.exports = (io, socket) => {
                 message:     "[image]",
                 sent_at:     new Date(),
                 attachments: [{
-                    file_url:  `${process.env.BASE_URL || ""}${file_url}`,
+                    file_url:  file_url,
                     file_name: file_name || "image",
                     file_type: file_type || "image"
                 }]

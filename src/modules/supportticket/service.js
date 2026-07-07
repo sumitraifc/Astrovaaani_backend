@@ -93,7 +93,7 @@ exports.getTickets = async (query, auth) => {
             message: "Ticket list fetched",
             data: rows.map(row => ({
                 ...row,
-                images: row.images ? JSON.parse(row.images).map(url => `${BASE_URL}${url}`) : [],
+                images: row.images ? JSON.parse(row.images).map(url => url?.startsWith('http') ? url : `${BASE_URL}${url}`) : [],
                 image_count: Number(row.image_count)
             })),
             pagination: {
@@ -133,7 +133,7 @@ exports.getTicketById = async (id) => {
                 attachments: msg.attachments
                     ? JSON.parse(msg.attachments).map(a => ({
                         ...a,
-                        file_url: `${BASE_URL}${a.file_url}`
+                        file_url: a.file_url?.startsWith('http') ? a.file_url : `${BASE_URL}${a.file_url}`
                     }))
                     : []
             };
@@ -222,7 +222,7 @@ exports.getAttachments = async (ticket_id) => {
 
         const data = rows.map(item => ({
             ...item,
-            file_url: `${BASE_URL}${item.file_url}`
+            file_url: item.file_url?.startsWith('http') ? item.file_url : `${BASE_URL}${item.file_url}`
         }));
 
         return {
