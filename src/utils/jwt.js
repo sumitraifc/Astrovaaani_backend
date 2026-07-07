@@ -15,7 +15,7 @@ exports.generateToken = (user) => {
       id: user.id,
       uuid: user.uuid,
       mobile: user.mobile,
-      status: user.status
+      status: user.status,
     },
     process.env.JWT_SECRET,
     { expiresIn: "7d" }

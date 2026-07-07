@@ -5,16 +5,21 @@ const service = require("./service");
  */
 exports.createTicket = async (req, res) => {
     try {
-        const user = req.user;
+        const auth_id = req.user.id;  // JWT se sirf id lenge
+        const role    = req.body.role; // frontend se aayega: "user" ya "astrologer"
+
+        if (!role || !['user', 'astrologer'].includes(role)) {
+            return res.status(400).json({ success: false, message: 'role required: user or astrologer' });
+        }
 
         const data = {
             ...req.body,
-            raised_by:     user.role || 'user',
-            user_id:       user.role === 'user'       ? user.id : null,
-            astrologer_id: user.role === 'astrologer' ? user.id : null,
-            user_name:     req.body.user_name  || user.name  || '',
-            user_phone:    req.body.user_phone || user.mobile || '',
-            user_email:    req.body.user_email || user.email  || '',
+            raised_by:     role,
+            user_id:       role === 'user'       ? auth_id : null,
+            astrologer_id: role === 'astrologer' ? auth_id : null,
+            user_name:     req.body.user_name  || '',
+            user_phone:    req.body.user_phone || '',
+            user_email:    req.body.user_email || '',
             image:         req.file ? `/uploads/support/${req.file.filename}` : null
         };
 
@@ -32,24 +37,17 @@ exports.createTicket = async (req, res) => {
  */
 exports.getTickets = async (req, res) => {
     try {
-
-        // auth middleware se aayega
-        const auth = req.user;
+        const auth = {
+            id:   req.user.id,
+            role: req.query.role  // frontend query mein bhejega: ?role=user
+        };
 
         const result = await service.getTickets(req.query, auth);
-
         return res.status(200).json(result);
 
     } catch (error) {
-
         console.log("GET TICKETS ERROR => ", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-            error: error.message
-        });
-
+        return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
     }
 };
 
@@ -83,31 +81,21 @@ exports.getTicketById = async (req, res) => {
  */
 exports.replyTicket = async (req, res) => {
     try {
-
         const ticket_id = req.params.id;
-        const auth = req.user;
 
         const data = {
             ticket_id,
-            from_type: auth.role, // user / astrologer / admin
-            sender_name: auth.name || "User",
-            message: req.body.message
+            from_type:   req.body.role || 'user',  // frontend se aayega
+            sender_name: req.body.sender_name || 'User',
+            message:     req.body.message
         };
 
         const result = await service.replyTicket(data, req.files);
-
         return res.status(200).json(result);
 
     } catch (error) {
-
         console.log("REPLY TICKET ERROR => ", error);
-
-        return res.status(500).json({
-            success: false,
-            message: "Internal Server Error",
-            error: error.message
-        });
-
+        return res.status(500).json({ success: false, message: "Internal Server Error", error: error.message });
     }
 };
 

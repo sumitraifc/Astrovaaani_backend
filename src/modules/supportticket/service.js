@@ -66,7 +66,7 @@ exports.getTickets = async (query, auth) => {
         const limit = Number(query.limit) || 10;
         const offset = (page - 1) * limit;
 
-        const raised_by = auth.role; // user / astrologer
+        const raised_by = auth.role;
         const user_id = auth.role === 'user' ? auth.id : null;
         const astrologer_id = auth.role === 'astrologer' ? auth.id : null;
 
