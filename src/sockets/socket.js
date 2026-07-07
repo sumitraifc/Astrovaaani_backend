@@ -3,7 +3,8 @@ const callHandlers = require("./callHandlers");
 const astrologerchatlistHandler = require("./astrologerchatlistHandler");
 const { astrologerSocket } = require("./astrologerHandler");
 const liveHandler = require("./liveHandler");
-const notificationcountHandler = require("./notificationcountHandler"); 
+const notificationcountHandler = require("./notificationcountHandler");
+const supportChatHandler = require("./supportChatHandler");
 
 /**
  * =========================================
@@ -29,6 +30,8 @@ module.exports = (io) => {
 
     astrologerSocket(io, socket);
 
+    const { handleSupportDisconnect } = supportChatHandler(io, socket);
+
     /**
      * =========================================
      * DISCONNECT HANDLER
@@ -45,6 +48,7 @@ module.exports = (io) => {
         await chatHandle.handleChatDisconnect();
           
         await handleLiveDisconnect();
+        handleSupportDisconnect();
         // Handle astrologer chat list disconnections
         // await astrologerChatListHandle.handleAstrologerChatListDisconnect();
 

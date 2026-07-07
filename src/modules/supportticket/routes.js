@@ -24,7 +24,7 @@ const upload = multer({
 });
 
 // Create Ticket (with optional image)
-router.post("/tickets", auth, upload.array("image", 5), controller.createTicket);
+router.post("/tickets", auth, upload.any(), controller.createTicket);
 
 // Get Ticket List
 router.get("/tickets", auth, controller.getTickets);
