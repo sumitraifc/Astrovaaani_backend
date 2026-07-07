@@ -76,7 +76,7 @@ module.exports = (io, socket) => {
                         SELECT JSON_ARRAYAGG(
                             JSON_OBJECT(
                                 'id',        a.id,
-                                'file_url',  a.file_url,
+                                'file_url',  IF(a.file_url LIKE 'http%', a.file_url, CONCAT(?, a.file_url)),
                                 'file_name', a.file_name,
                                 'file_type', a.file_type
                             )
@@ -88,7 +88,7 @@ module.exports = (io, socket) => {
                 WHERE m.ticket_id = ?
                 ORDER BY m.id ASC
                 LIMIT 50
-            `, [ticket_id]);
+            `, [process.env.BASE_URL || "", ticket_id]);
 
             const formatted = messages.map(m => ({
                 ...m,
@@ -118,20 +118,19 @@ module.exports = (io, socket) => {
     });
 
     // =========================================
-    // SEND MESSAGE (text)
+    // SEND MESSAGE (text + image dono)
     // emit: support_send_message
     // on:   support_receive_message  (broadcast)
-    // on:   support_message_ack      (ack to sender)
-    // payload: { ticket_id, sender_type, sender_name, message }
+    // payload: { ticket_id, sender_type, sender_name, message?, file_url?, file_name?, file_type? }
     // =========================================
     socket.on("support_send_message", async (data, callback) => {
         try {
-            const { ticket_id, sender_type, sender_name, message } = data;
+            const { ticket_id, sender_type, sender_name, message, file_url, file_name, file_type } = data;
 
             console.log(`[SupportChat] support_send_message => ticket:${ticket_id} from:${sender_type}`);
 
-            if (!ticket_id || !sender_type || !message?.trim()) {
-                return callback?.({ success: false, message: "ticket_id, sender_type, message required" });
+            if (!ticket_id || !sender_type || (!message?.trim() && !file_url)) {
+                return callback?.({ success: false, message: "ticket_id, sender_type, and message or file_url required" });
             }
 
             // Ticket status check
@@ -147,107 +146,43 @@ module.exports = (io, socket) => {
             if (ticketRows[0].status === "resolved" || ticketRows[0].status === "rejected") {
                 return callback?.({ success: false, message: "Ticket is closed" });
             }
+
+            const msgText = file_url ? (message?.trim() || "[image]") : message.trim();
 
             // Save message
             const [result] = await db.query(`
                 INSERT INTO support_ticket_messages (ticket_id, from_type, sender_name, message)
                 VALUES (?, ?, ?, ?)
-            `, [ticket_id, sender_type, sender_name || sender_type, message.trim()]);
+            `, [ticket_id, sender_type, sender_name || sender_type, msgText]);
+
+            const message_id = result.insertId;
+
+            // Save attachment if file_url present
+            let attachments = [];
+            if (file_url) {
+                await db.query(`
+                    INSERT INTO support_ticket_attachments (message_id, ticket_id, file_url, file_name, file_type)
+                    VALUES (?, ?, ?, ?, ?)
+                `, [message_id, ticket_id, file_url, file_name || "file", file_type || "image"]);
+
+                attachments = [{ file_url, file_name: file_name || "file", file_type: file_type || "image" }];
+            }
 
             const [msgRows] = await db.query(
                 `SELECT * FROM support_ticket_messages WHERE id=? LIMIT 1`,
-                [result.insertId]
+                [message_id]
             );
 
-            const savedMsg = { ...msgRows[0], attachments: [] };
+            const savedMsg = { ...msgRows[0], attachments };
 
-            // Broadcast to all in room including sender
             io.to(roomName(ticket_id)).emit("support_receive_message", savedMsg);
 
-            console.log(`[SupportChat] Message saved id:${result.insertId} ticket:${ticket_id}`);
+            console.log(`[SupportChat] Message saved id:${message_id} ticket:${ticket_id}`);
 
             callback?.({ success: true, message: "Message sent", data: savedMsg });
 
         } catch (err) {
             console.error(`[SupportChat] support_send_message error:`, err.message);
-            callback?.({ success: false, message: err.message });
-        }
-    });
-
-    // =========================================
-    // SEND IMAGE MESSAGE
-    // emit: support_send_image
-    // on:   support_receive_message  (broadcast)
-    // on:   ack callback
-    // payload: { ticket_id, sender_type, sender_name, file_url, file_name, file_type }
-    // file_url: REST API /chat/upload-file se upload karo pehle, phir url yahan bhejo
-    // =========================================
-    socket.on("support_send_image", async (data, callback) => {
-        try {
-            const { ticket_id, sender_type, sender_name, file_url, file_name, file_type } = data;
-
-            console.log(`[SupportChat] support_send_image => ticket:${ticket_id} from:${sender_type}`);
-
-            if (!ticket_id || !sender_type || !file_url) {
-                return callback?.({ success: false, message: "ticket_id, sender_type, file_url required" });
-            }
-
-            // Ticket status check
-            const [ticketRows] = await db.query(
-                `SELECT status FROM support_tickets WHERE id=? LIMIT 1`,
-                [ticket_id]
-            );
-
-            if (!ticketRows.length) {
-                return callback?.({ success: false, message: "Ticket not found" });
-            }
-
-            if (ticketRows[0].status === "resolved" || ticketRows[0].status === "rejected") {
-                return callback?.({ success: false, message: "Ticket is closed" });
-            }
-
-            // Save message row
-            const [msgResult] = await db.query(`
-                INSERT INTO support_ticket_messages (ticket_id, from_type, sender_name, message)
-                VALUES (?, ?, ?, ?)
-            `, [ticket_id, sender_type, sender_name || sender_type, "[image]"]);
-
-            const message_id = msgResult.insertId;
-
-            // Save attachment
-            await db.query(`
-                INSERT INTO support_ticket_attachments (message_id, ticket_id, file_url, file_name, file_type)
-                VALUES (?, ?, ?, ?, ?)
-            `, [
-                message_id,
-                ticket_id,
-                file_url,
-                file_name || "image",
-                file_type || "image"
-            ]);
-
-            const savedMsg = {
-                id:          message_id,
-                ticket_id,
-                from_type:   sender_type,
-                sender_name: sender_name || sender_type,
-                message:     "[image]",
-                sent_at:     new Date(),
-                attachments: [{
-                    file_url:  file_url,
-                    file_name: file_name || "image",
-                    file_type: file_type || "image"
-                }]
-            };
-
-            io.to(roomName(ticket_id)).emit("support_receive_message", savedMsg);
-
-            console.log(`[SupportChat] Image saved message_id:${message_id} ticket:${ticket_id}`);
-
-            callback?.({ success: true, message: "Image sent", data: savedMsg });
-
-        } catch (err) {
-            console.error(`[SupportChat] support_send_image error:`, err.message);
             callback?.({ success: false, message: err.message });
         }
     });
