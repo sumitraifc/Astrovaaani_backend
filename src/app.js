@@ -136,6 +136,9 @@ app.use("/api/user/gift-amount", require("./modules/giftamounthandle/routes"));
 
 app.use("/api/support", require("./modules/supportticket/routes"));
 
+app.use("/api/report", require("./modules/report/routes"));
+app.use("/api/block",  require("./modules/block/routes"));
+
 app.use(
     "/api/referral",
     require("./modules/referral/routes")
@@ -159,6 +162,7 @@ app.use("/api/admin/admin-payout",        require("./modules/admin/admin-payout/
 app.use("/api/admin/reviews",             require("./modules/admin/reviews/routes"));
 app.use("/api/admin/withdrawal-charges",  require("./modules/admin/withdrawal-charges/routes"));
 app.use("/api/admin/referral-settings",   require("./modules/admin/referral-settings/routes"));
+app.use("/api/admin/reports",             require("./modules/admin/reports/routes"));
 
 /**
  * =========================
