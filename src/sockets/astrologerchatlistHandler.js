@@ -125,9 +125,14 @@ module.exports = (io, socket) => {
       WHERE c2.user_id = cc.user_id
         AND c2.astrologer_id = cc.astrologer_id
     )
+    AND cc.user_id NOT IN (
+      SELECT blocker_user_id FROM blocks
+      WHERE blocker_user_id IS NOT NULL
+        AND blocked_astrologer_id = ?
+    )
 
   ORDER BY cc.last_message_at DESC
-`, [astrologer_id]);
+`, [astrologer_id, astrologer_id]);
 
       console.log("📊 Total Unique Users:", rows.length);
 

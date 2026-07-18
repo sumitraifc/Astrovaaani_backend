@@ -3,7 +3,18 @@ const { sendNotification } = require("../config/notification");
 /* =========================
    GET ALL ASTROLOGERS
 ========================= */
-async function getAllAstrologers() {
+async function getAllAstrologers(userId) {
+  const params = [];
+  let blockFilter = '';
+
+  if (userId) {
+    blockFilter = `AND id NOT IN (
+      SELECT blocked_astrologer_id FROM blocks
+      WHERE blocker_user_id = ? AND blocked_astrologer_id IS NOT NULL
+    )`;
+    params.push(userId);
+  }
+
   const [rows] = await db.query(`
     SELECT
       id,
@@ -31,9 +42,9 @@ async function getAllAstrologers() {
       updated_at,
       live_status
     FROM astrologers
-     WHERE status = 'active'
-  AND approval_status = 'approved'
-    
+    WHERE status = 'active'
+    AND approval_status = 'approved'
+    ${blockFilter}
     ORDER BY
       CASE
         WHEN is_online = 1 AND live_status = 'busy' THEN 1
@@ -43,9 +54,8 @@ async function getAllAstrologers() {
       END,
       rating DESC,
       name ASC
-  `);
+  `, params);
 
-  // return rows;
   return rows.map(formatAstrologer);
 }
 
@@ -242,8 +252,18 @@ function astrologerSocket(io, socket) {
   /* GET LIST */
   socket.on("astrologer:get_list", async (payload, ack) => {
     try {
+      // JWT se user_id nikalo, frontend ko pass nahi karna
+      let user_id = null;
+      try {
+        const token = socket.handshake.auth?.token;
+        if (token) {
+          const jwt = require('jsonwebtoken');
+          const decoded = jwt.verify(token, process.env.JWT_SECRET);
+          user_id = decoded.id || null;
+        }
+      } catch (_) {}
 
-      const data = await getAllAstrologers();
+      const data = await getAllAstrologers(user_id);
 
       socket.emit("astrologer:list_updated", {
         success: true,
