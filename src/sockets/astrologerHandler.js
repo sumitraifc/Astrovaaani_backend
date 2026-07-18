@@ -11,8 +11,11 @@ async function getAllAstrologers(userId) {
     blockFilter = `AND id NOT IN (
       SELECT blocked_astrologer_id FROM blocks
       WHERE blocker_user_id = ? AND blocked_astrologer_id IS NOT NULL
+      UNION
+      SELECT blocker_astrologer_id FROM blocks
+      WHERE blocked_user_id = ? AND blocker_astrologer_id IS NOT NULL
     )`;
-    params.push(userId);
+    params.push(userId, userId);
   }
 
   const [rows] = await db.query(`

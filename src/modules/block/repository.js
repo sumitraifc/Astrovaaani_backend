@@ -79,6 +79,11 @@ exports.getBlockedAstrologers = async (userId, page, limit) => {
      ORDER BY b.created_at DESC LIMIT ? OFFSET ?`,
     [userId, limit, offset]
   );
+  const BASE_URL = process.env.BASE_URL || '';
+  rows.forEach(r => {
+    if (r.profile_image && !r.profile_image.startsWith('http'))
+      r.profile_image = `${BASE_URL}/uploads/${r.profile_image}`;
+  });
   return { total, page, limit, data: rows };
 };
 
@@ -101,6 +106,11 @@ exports.getBlockedUsers = async (astrologerId, page, limit) => {
      ORDER BY b.created_at DESC LIMIT ? OFFSET ?`,
     [astrologerId, limit, offset]
   );
+  const BASE_URL = process.env.BASE_URL || '';
+  rows.forEach(r => {
+    if (r.profile_image && !r.profile_image.startsWith('http'))
+      r.profile_image = `${BASE_URL}/uploads/${r.profile_image}`;
+  });
   return { total, page, limit, data: rows };
 };
 
