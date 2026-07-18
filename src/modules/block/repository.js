@@ -1,17 +1,28 @@
 const pool = require('../../config/db');
 
 exports.block = async (data) => {
+  const bu  = data.blocker_user_id        || null;
+  const ba  = data.blocker_astrologer_id  || null;
+  const bdu = data.blocked_user_id        || null;
+  const bda = data.blocked_astrologer_id  || null;
+
+  // NULL <=> NULL safe check to prevent duplicates (MySQL UNIQUE ignores NULLs)
+  const [[existing]] = await pool.query(
+    `SELECT id FROM blocks
+     WHERE blocker_user_id       <=> ?
+       AND blocker_astrologer_id <=> ?
+       AND blocked_user_id       <=> ?
+       AND blocked_astrologer_id <=> ?
+     LIMIT 1`,
+    [bu, ba, bdu, bda]
+  );
+  if (existing) return;
+
   await pool.query(
-    `INSERT IGNORE INTO blocks
+    `INSERT INTO blocks
      (blocker_type, blocker_user_id, blocker_astrologer_id, blocked_user_id, blocked_astrologer_id)
      VALUES (?,?,?,?,?)`,
-    [
-      data.blocker_type,
-      data.blocker_user_id        || null,
-      data.blocker_astrologer_id  || null,
-      data.blocked_user_id        || null,
-      data.blocked_astrologer_id  || null
-    ]
+    [data.blocker_type, bu, ba, bdu, bda]
   );
 };
 

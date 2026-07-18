@@ -259,9 +259,15 @@ function astrologerSocket(io, socket) {
         if (token) {
           const jwt = require('jsonwebtoken');
           const decoded = jwt.verify(token, process.env.JWT_SECRET);
+          console.log('[astrologer:get_list] decoded JWT:', decoded);
           user_id = decoded.id || null;
+          console.log('[astrologer:get_list] user_id:', user_id);
+        } else {
+          console.log('[astrologer:get_list] No token found in socket.handshake.auth');
         }
-      } catch (_) {}
+      } catch (err) {
+        console.log('[astrologer:get_list] JWT error:', err.message);
+      }
 
       const data = await getAllAstrologers(user_id);
 
