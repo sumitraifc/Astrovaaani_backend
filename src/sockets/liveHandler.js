@@ -123,7 +123,15 @@ socket.on("get_first_live", async (data, callback) => {
       FROM live_streams ls
       JOIN astrologers a ON a.id = ls.astrologer_id
       WHERE ls.status = 'live'
-      ORDER BY ls.viewer_count DESC`
+        AND ls.astrologer_id NOT IN (
+          SELECT blocked_astrologer_id FROM blocks
+          WHERE blocker_user_id = ? AND blocked_astrologer_id IS NOT NULL
+          UNION
+          SELECT blocker_astrologer_id FROM blocks
+          WHERE blocked_user_id = ? AND blocker_astrologer_id IS NOT NULL
+        )
+      ORDER BY ls.viewer_count DESC`,
+      [user_id, user_id]
     );
 
     if (!rows.length) {
