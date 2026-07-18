@@ -412,6 +412,7 @@ function astrologerSocket(io, socket) {
 
 module.exports = {
   astrologerSocket,
+  getAllAstrologers,
   setAstrologerOnlineStatus,
   setAstrologerChatStatus,
   updateStepStatus

@@ -15,6 +15,19 @@ module.exports = (io) => {
   io.on("connection", (socket) => {
     console.log("Socket Connected:", socket.id);
 
+    // JWT se user_id nikalo aur personal room join karo
+    try {
+      const token = socket.handshake.auth?.token;
+      if (token) {
+        const jwt = require('jsonwebtoken');
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (decoded.id) {
+          socket.join(`user_${decoded.id}`);
+          console.log(`Socket ${socket.id} joined room user_${decoded.id}`);
+        }
+      }
+    } catch (_) {}
+
     // Initialize chat handlers
     const chatHandle = chatHandlers(io, socket);
 
