@@ -2,7 +2,7 @@ const service = require('./service');
 
 exports.block = async (req, res) => {
   try {
-    const { targetId, targetType } = req.params;
+    const { targetId, targetType } = req.body;
     const result = await service.block(req.user, targetId, targetType);
     res.json(result);
   } catch (err) {
