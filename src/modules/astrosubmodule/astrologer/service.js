@@ -134,6 +134,17 @@ exports.saveStep = async (step, id, payload) => {
       throw new Error("This mobile already registered");
     }
 
+    // Referral code validate karo
+    let referred_by = null;
+    if (payload.referred_by_code) {
+      const [refRows] = await require('../../../config/db').query(
+        'SELECT id FROM astrologers WHERE referral_code = ? LIMIT 1',
+        [payload.referred_by_code.trim()]
+      );
+      if (!refRows.length) throw new Error('Invalid referral code');
+      referred_by = refRows[0].id;
+    }
+
     const newId = await repo.create({
       uuid: uuidv4(),
       phone: payload.phone,
@@ -145,6 +156,7 @@ exports.saveStep = async (step, id, payload) => {
       profile_image: payload.profile_image,
       id_proof: payload.id_proof,
       about: payload.about,
+      referred_by,
 
       registration_step: 2,
       registration_completed: 0,
