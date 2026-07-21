@@ -469,6 +469,15 @@ exports.updateStepStatus = async (id, step, status, remark, adminId) => {
           [astro.referred_by, bonus, before, after, `Referral bonus for approving astrologer #${id}`]
         );
 
+        // referral_histories mein entry
+        await pool.query(
+          `INSERT INTO referral_histories
+            (referrer_id, referred_astrologer_id, referral_code, bonus_amount, status, completed_at)
+           VALUES (?, ?, ?, ?, 'completed', NOW())
+           ON DUPLICATE KEY UPDATE status='completed', bonus_amount=?, completed_at=NOW()`,
+          [astro.referred_by, id, referralCode, bonus, bonus]
+        );
+
         // Referrer ke stats update karo
         await pool.query(
           `UPDATE astrologers
