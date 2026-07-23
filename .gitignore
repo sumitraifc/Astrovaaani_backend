@@ -2,7 +2,7 @@
 # Dependencies
 # =========================
 node_modules/
-
+docs/
 src/config/redis.js
 
 uploads/

@@ -461,6 +461,12 @@ exports.updateStepStatus = async (id, step, status, remark, adminId) => {
           [astro.referred_by, after, after]
         );
 
+        // astrologers.wallet_balance bhi sync karo
+        await pool.query(
+          'UPDATE astrologers SET wallet_balance = ? WHERE id = ?',
+          [after, astro.referred_by]
+        );
+
         // wallet transaction record
         await pool.query(
           `INSERT INTO wallet_transactions
