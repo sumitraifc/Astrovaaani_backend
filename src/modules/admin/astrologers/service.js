@@ -8,3 +8,4 @@ exports.block         = (id) => repo.updateStatus(id, 'blocked');
 exports.unblock       = (id) => repo.updateStatus(id, 'active');
 exports.delete        = (id) => repo.delete(id);
 exports.updateCommission = (id, commission) => repo.updateCommission(id, commission);
+exports.update           = (id, data) => repo.update(id, data);

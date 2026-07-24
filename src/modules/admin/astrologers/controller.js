@@ -64,3 +64,10 @@ exports.updateCommission = async (req, res) => {
     res.json({ success: true, message: 'Commission updated' });
   } catch (err) { res.status(500).json({ success: false, message: err.message }); }
 };
+
+exports.update = async (req, res) => {
+  try {
+    await service.update(req.params.id, req.body);
+    res.json({ success: true, message: 'Astrologer updated' });
+  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+};

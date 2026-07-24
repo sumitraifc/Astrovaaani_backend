@@ -521,3 +521,29 @@ exports.delete = async (id) => {
 exports.updateCommission = async (id, commission) => {
   await pool.query('UPDATE astrologers SET commission_percent = ? WHERE id = ?', [commission, id]);
 };
+
+exports.update = async (id, data) => {
+  const allowed = [
+    'name', 'email', 'phone', 'gender', 'dob', 'experience',
+    'specialization', 'education', 'about', 'languages', 'skills',
+    'rating', 'chat_charge', 'audio_charge', 'video_charge',
+    'commission_percent', 'wallet_balance',
+    'bank_name', 'account_number', 'ifsc_code', 'upi_id', 'account_holder',
+  ];
+  const fields = [];
+  const values = [];
+  for (const key of allowed) {
+    if (data[key] !== undefined) {
+      fields.push(`${key} = ?`);
+      values.push(Array.isArray(data[key]) ? JSON.stringify(data[key]) : data[key]);
+    }
+  }
+  // commission alias
+  if (data.commission !== undefined && data.commission_percent === undefined) {
+    fields.push('commission_percent = ?');
+    values.push(data.commission);
+  }
+  if (!fields.length) return;
+  values.push(id);
+  await pool.query(`UPDATE astrologers SET ${fields.join(', ')} WHERE id = ?`, values);
+};
