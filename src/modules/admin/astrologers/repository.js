@@ -525,7 +525,7 @@ exports.updateCommission = async (id, commission) => {
 exports.update = async (id, data) => {
   const allowed = [
     'name', 'email', 'phone', 'gender', 'dob', 'experience',
-    'expertise', 'education', 'about', 'languages', 'skills',
+    'expertise', 'education', 'about', 'languages', 
     'rating', 'chat_charge', 'audio_charge', 'video_charge',
     'commission_percent', 'wallet_balance',
     'bank_name', 'account_number', 'ifsc_code', 'upi_id', 'account_holder',
